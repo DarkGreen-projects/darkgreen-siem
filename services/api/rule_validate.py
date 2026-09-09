@@ -5,6 +5,17 @@ from __future__ import annotations
 import re
 from typing import Any
 
+from .input_limits import (
+    ALLOWED_MATCH_KEYS,
+    MAX_COOLDOWN_MINUTES,
+    MAX_MATCH_KEYS,
+    MAX_MATCH_VALUE_LEN,
+    MAX_RULE_NAME,
+    MAX_RULE_TEXT,
+    MAX_THRESHOLD,
+    MAX_WINDOW_MINUTES,
+)
+
 RULE_ID_RE = re.compile(r"^[a-z0-9][a-z0-9_-]{1,62}$")
 ALLOWED_GROUP_BY = frozenset({"user", "src_ip", "host", "action", "source_type"})
 ALLOWED_TYPES = frozenset({"match", "threshold"})
@@ -19,17 +30,24 @@ class RuleConflictError(FileExistsError):
     pass
 
 
-def validate_rule_payload(data: dict[str, Any]) -> dict[str, Any]:
-    """Normalize and validate a rule dict for persistence. Raises RuleValidationError."""
-    rule_id = str(data.get("id") or "").strip().lower()
-    if not RULE_ID_RE.match(rule_id):
+def validate_rule_id(rule_id: str) -> str:
+    rid = str(rule_id or "").strip().lower()
+    if not RULE_ID_RE.match(rid):
         raise RuleValidationError(
             "id must be a slug: start with a-z0-9, then a-z0-9_- (2-63 chars)"
         )
+    return rid
+
+
+def validate_rule_payload(data: dict[str, Any]) -> dict[str, Any]:
+    """Normalize and validate a rule dict for persistence. Raises RuleValidationError."""
+    rule_id = validate_rule_id(str(data.get("id") or ""))
 
     name = str(data.get("name") or "").strip()
     if not name:
         raise RuleValidationError("name is required")
+    if len(name) > MAX_RULE_NAME:
+        raise RuleValidationError(f"name must be <= {MAX_RULE_NAME} chars")
 
     rtype = str(data.get("type") or "match").strip().lower()
     if rtype not in ALLOWED_TYPES:
@@ -44,38 +62,52 @@ def validate_rule_payload(data: dict[str, Any]) -> dict[str, Any]:
     match = data.get("match") or data.get("filters") or {}
     if not isinstance(match, dict) or not match:
         raise RuleValidationError("match filters are required (non-empty object)")
+    if len(match) > MAX_MATCH_KEYS:
+        raise RuleValidationError(f"match may have at most {MAX_MATCH_KEYS} keys")
+
     clean_match: dict[str, Any] = {}
     for key, value in match.items():
         k = str(key).strip()
         if not k:
             continue
+        if k not in ALLOWED_MATCH_KEYS:
+            raise RuleValidationError(
+                f"match key '{k}' not allowed; use: {', '.join(sorted(ALLOWED_MATCH_KEYS))}"
+            )
         if isinstance(value, list):
-            clean_match[k] = [str(v) for v in value if str(v).strip()]
+            vals = [str(v).strip()[:MAX_MATCH_VALUE_LEN] for v in value if str(v).strip()]
+            if vals:
+                clean_match[k] = vals
         else:
-            v = str(value).strip()
+            v = str(value).strip()[:MAX_MATCH_VALUE_LEN]
             if v:
                 clean_match[k] = v
     if not clean_match:
         raise RuleValidationError("match filters are required (non-empty object)")
 
+    description = str(data.get("description") or "").strip()[:MAX_RULE_TEXT]
+    threat_brief = str(data.get("threat_brief") or "").strip()[:MAX_RULE_TEXT]
+    window = max(1, min(MAX_WINDOW_MINUTES, int(data.get("window_minutes") or 10)))
+    cooldown = max(1, min(MAX_COOLDOWN_MINUTES, int(data.get("cooldown_minutes") or 15)))
+
     out: dict[str, Any] = {
         "id": rule_id,
         "name": name,
-        "title": str(data.get("title") or name).strip() or name,
-        "description": str(data.get("description") or "").strip(),
-        "threat_brief": str(data.get("threat_brief") or "").strip(),
+        "title": str(data.get("title") or name).strip()[:MAX_RULE_NAME] or name,
+        "description": description,
+        "threat_brief": threat_brief,
         "type": rtype,
         "severity": severity,
         "enabled": bool(data.get("enabled", True)),
-        "window_minutes": max(1, int(data.get("window_minutes") or 10)),
-        "cooldown_minutes": max(1, int(data.get("cooldown_minutes") or 15)),
+        "window_minutes": window,
+        "cooldown_minutes": cooldown,
         "match": clean_match,
     }
 
     if rtype == "threshold":
         threshold = int(data.get("threshold") or 0)
-        if threshold < 1:
-            raise RuleValidationError("threshold must be >= 1")
+        if threshold < 1 or threshold > MAX_THRESHOLD:
+            raise RuleValidationError(f"threshold must be 1..{MAX_THRESHOLD}")
         group_by = str(data.get("group_by") or "user").strip()
         if group_by not in ALLOWED_GROUP_BY:
             raise RuleValidationError(

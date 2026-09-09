@@ -17,6 +17,7 @@ from .rule_store import (
 from .rule_validate import (
     RuleConflictError,
     RuleValidationError,
+    validate_rule_id,
     validate_rule_payload,
 )
 
@@ -25,6 +26,7 @@ __all__ = [
     "RuleValidationError",
     "load_rules",
     "validate_rule_payload",
+    "validate_rule_id",
     "save_rule",
     "delete_rule",
     "set_rule_enabled",

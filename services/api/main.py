@@ -23,7 +23,15 @@ from .rules_engine import (
     run_rules,
     save_rule,
     set_rule_enabled,
+    validate_rule_id,
 )
+from .input_limits import (
+    ALLOWED_SOURCE_TYPES,
+    MAX_INGEST_BATCH,
+    MAX_RAW_BYTES,
+    MAX_SEARCH_Q,
+)
+from .rule_validate import ALLOWED_SEVERITIES
 from .schemas import (
     ALERT_STATUSES,
     AlertOut,
@@ -188,10 +196,10 @@ app = FastAPI(
 origins = [o.strip() for o in settings.cors_origins.split(",") if o.strip()]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins or ["*"],
+    allow_origins=origins or ["http://localhost:8080", "http://127.0.0.1:8080"],
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Content-Type", "Authorization"],
 )
 
 
@@ -209,13 +217,23 @@ def api_ingest(body: IngestRequest, db: Session = Depends(get_db)) -> IngestResp
         items.append((body.raw, body.source_type, body.ingest_channel or "http"))
     if not items:
         raise HTTPException(status_code=400, detail="No events provided")
+    if len(items) > MAX_INGEST_BATCH:
+        raise HTTPException(
+            status_code=400, detail=f"Too many events (max {MAX_INGEST_BATCH})"
+        )
+    for payload, _, _ in items:
+        raw_size = len(payload) if isinstance(payload, (str, bytes)) else len(str(payload))
+        if raw_size > MAX_RAW_BYTES:
+            raise HTTPException(
+                status_code=400, detail=f"Event payload too large (max {MAX_RAW_BYTES} bytes)"
+            )
     ids = ingest_many(db, items)
     return IngestResponse(inserted=len(ids), ids=ids)
 
 
 @app.get("/api/events/search", response_model=SearchResponse)
 def api_search(
-    q: str = Query("", description="field:value AND free-text"),
+    q: str = Query("", max_length=MAX_SEARCH_Q, description="field:value AND free-text"),
     source_type: str | None = None,
     severity: str | None = None,
     since_minutes: int | None = Query(None, ge=1, le=10080),
@@ -223,6 +241,16 @@ def api_search(
     offset: int = Query(0, ge=0),
     db: Session = Depends(get_db),
 ) -> SearchResponse:
+    if source_type and source_type not in ALLOWED_SOURCE_TYPES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"source_type must be one of: {', '.join(sorted(ALLOWED_SOURCE_TYPES))}",
+        )
+    if severity and severity.lower() not in ALLOWED_SEVERITIES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"severity must be one of: {', '.join(sorted(ALLOWED_SEVERITIES))}",
+        )
     briefs = _rule_briefs()
     total, events = search_events(
         db,
@@ -416,9 +444,13 @@ def api_create_rule(body: RuleCreate) -> RuleOut:
 
 @app.put("/api/rules/{rule_id}", response_model=RuleOut)
 def api_update_rule(rule_id: str, body: RuleCreate) -> RuleOut:
+    try:
+        rid = validate_rule_id(rule_id)
+    except RuleValidationError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     payload = body.model_dump()
     payload.pop("overwrite", None)
-    if payload.get("id", "").strip().lower() != rule_id.strip().lower():
+    if payload.get("id", "").strip().lower() != rid:
         raise HTTPException(status_code=400, detail="Path id must match body id")
     try:
         saved = save_rule(settings.rules_dir, payload, overwrite=True)
@@ -432,7 +464,11 @@ def api_update_rule(rule_id: str, body: RuleCreate) -> RuleOut:
 @app.delete("/api/rules/{rule_id}", status_code=204)
 def api_delete_rule(rule_id: str) -> Response:
     try:
-        delete_rule(settings.rules_dir, rule_id)
+        rid = validate_rule_id(rule_id)
+    except RuleValidationError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    try:
+        delete_rule(settings.rules_dir, rid)
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except OSError as exc:
@@ -443,7 +479,11 @@ def api_delete_rule(rule_id: str) -> Response:
 @app.patch("/api/rules/{rule_id}/enabled", response_model=RuleOut)
 def api_set_rule_enabled(rule_id: str, body: RuleEnabledUpdate) -> RuleOut:
     try:
-        saved = set_rule_enabled(settings.rules_dir, rule_id, body.enabled)
+        rid = validate_rule_id(rule_id)
+    except RuleValidationError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    try:
+        saved = set_rule_enabled(settings.rules_dir, rid, body.enabled)
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except RuleValidationError as exc:
@@ -459,6 +499,11 @@ def api_alerts(
     limit: int = Query(50, ge=1, le=200),
     db: Session = Depends(get_db),
 ) -> list[AlertOut]:
+    if status and status not in ALERT_STATUSES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"status must be one of: {', '.join(sorted(ALERT_STATUSES))}",
+        )
     briefs = _rule_briefs()
     stmt = select(Alert).order_by(Alert.created_at.desc()).limit(limit)
     if status:

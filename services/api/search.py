@@ -8,6 +8,7 @@ from sqlalchemy import Select, and_, cast, func, or_, select
 from sqlalchemy.orm import Session
 from sqlalchemy.types import String
 
+from .input_limits import escape_like
 from .models import Event
 from .query_parse import parse_query
 
@@ -44,21 +45,21 @@ def build_search_query(
         if col is None:
             continue
         if field == "message":
-            clauses.append(col.ilike(f"%{value}%"))
+            clauses.append(col.ilike(f"%{escape_like(value)}%", escape="\\"))
         else:
             clauses.append(func.lower(cast(col, String)) == value.lower())
 
     for term in free_terms:
-        like = f"%{term}%"
+        like = f"%{escape_like(term)}%"
         clauses.append(
             or_(
-                Event.message.ilike(like),
-                Event.raw.ilike(like),
-                Event.user.ilike(like),
-                Event.host.ilike(like),
-                Event.src_ip.ilike(like),
-                Event.dst_ip.ilike(like),
-                Event.action.ilike(like),
+                Event.message.ilike(like, escape="\\"),
+                Event.raw.ilike(like, escape="\\"),
+                Event.user.ilike(like, escape="\\"),
+                Event.host.ilike(like, escape="\\"),
+                Event.src_ip.ilike(like, escape="\\"),
+                Event.dst_ip.ilike(like, escape="\\"),
+                Event.action.ilike(like, escape="\\"),
             )
         )
 
@@ -101,20 +102,20 @@ def search_events(
         if col is None:
             continue
         if field == "message":
-            clauses.append(col.ilike(f"%{value}%"))
+            clauses.append(col.ilike(f"%{escape_like(value)}%", escape="\\"))
         else:
             clauses.append(func.lower(cast(col, String)) == value.lower())
     for term in free_terms:
-        like = f"%{term}%"
+        like = f"%{escape_like(term)}%"
         clauses.append(
             or_(
-                Event.message.ilike(like),
-                Event.raw.ilike(like),
-                Event.user.ilike(like),
-                Event.host.ilike(like),
-                Event.src_ip.ilike(like),
-                Event.dst_ip.ilike(like),
-                Event.action.ilike(like),
+                Event.message.ilike(like, escape="\\"),
+                Event.raw.ilike(like, escape="\\"),
+                Event.user.ilike(like, escape="\\"),
+                Event.host.ilike(like, escape="\\"),
+                Event.src_ip.ilike(like, escape="\\"),
+                Event.dst_ip.ilike(like, escape="\\"),
+                Event.action.ilike(like, escape="\\"),
             )
         )
     if source_type:

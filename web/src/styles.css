@@ -102,6 +102,8 @@ body {
   border-radius: var(--radius);
   padding: 1rem 1.1rem;
   margin-bottom: 1rem;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
 }
 
 .grid {
@@ -181,6 +183,16 @@ button.primary:hover, .btn:hover {
   background: var(--accent-hover);
 }
 
+button.primary:focus-visible,
+button.ghost:focus-visible,
+.nav button:focus-visible,
+.chip-option:focus-visible,
+.query-chip:focus-visible,
+a.vt-link:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
 button.ghost {
   background: transparent;
   border: 1px solid var(--border);
@@ -193,6 +205,11 @@ button.ghost {
 
 button.ghost:hover {
   border-color: var(--accent);
+}
+
+button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
 }
 
 table {
@@ -763,6 +780,98 @@ pre.raw {
 .list-item h4 {
   margin: 0 0 0.25rem;
   font-size: 0.95rem;
+}
+
+.alert-card {
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.alert-card:hover {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+}
+
+.alert-card-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+  margin-bottom: 0.35rem;
+}
+
+.alert-card-title {
+  flex: 1;
+  min-width: 10rem;
+}
+
+.alert-card-meta {
+  font-size: 0.8rem;
+}
+
+.alert-card-desc {
+  margin: 0.35rem 0;
+}
+
+.ioc-block {
+  margin: 0.55rem 0 0.75rem;
+  padding: 0.55rem 0.65rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--bg) 70%, transparent);
+}
+
+.ioc-block > strong {
+  display: block;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--accent);
+  margin-bottom: 0.4rem;
+}
+
+.ioc-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.ioc-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.25rem 0.45rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-elevated);
+  font-size: 0.8rem;
+}
+
+.ioc-chip .mono {
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.vt-link {
+  color: var(--accent);
+  font-weight: 600;
+  font-size: 0.75rem;
+  text-decoration: none;
+  border: 1px solid color-mix(in srgb, var(--accent) 50%, var(--border));
+  border-radius: 4px;
+  padding: 0.05rem 0.35rem;
+  font-family: var(--mono);
+}
+
+.vt-link:hover {
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+}
+
+.ioc-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  flex-wrap: wrap;
 }
 
 .error {

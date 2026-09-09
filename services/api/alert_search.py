@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 
 from .models import Alert, AlertComment
 from .query_parse import search_terms_from_query
+from .input_limits import escape_like
 
 
 def search_alerts_by_text(
@@ -19,10 +20,10 @@ def search_alerts_by_text(
 
     clauses = []
     for term in terms:
-        like = f"%{term}%"
-        clauses.append(Alert.title.ilike(like))
-        clauses.append(Alert.description.ilike(like))
-        clauses.append(AlertComment.body.ilike(like))
+        like = f"%{escape_like(term)}%"
+        clauses.append(Alert.title.ilike(like, escape="\\"))
+        clauses.append(Alert.description.ilike(like, escape="\\"))
+        clauses.append(AlertComment.body.ilike(like, escape="\\"))
 
     stmt = (
         select(Alert, AlertComment.body)

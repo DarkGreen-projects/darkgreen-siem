@@ -9,6 +9,17 @@ import {
   type SavedQuery,
 } from "../savedQueries";
 import AlertCard from "./AlertCard";
+import { iocForIp, type IocHit } from "../vtLinks";
+
+function VtIpLink({ ip }: { ip: string | null | undefined }) {
+  const ioc: IocHit | null = iocForIp(ip);
+  if (!ioc) return null;
+  return (
+    <a className="vt-link" href={ioc.vtUrl} target="_blank" rel="noopener noreferrer">
+      VT
+    </a>
+  );
+}
 
 export default function SearchPanel() {
   const [q, setQ] = useState("action:deny");
@@ -321,9 +332,15 @@ export default function SearchPanel() {
               <dt>User</dt>
               <dd>{selected.user || "—"}</dd>
               <dt>Src IP</dt>
-              <dd className="mono">{selected.src_ip || "—"}</dd>
+              <dd className="mono ioc-inline">
+                {selected.src_ip || "—"}
+                <VtIpLink ip={selected.src_ip} />
+              </dd>
               <dt>Dst IP</dt>
-              <dd className="mono">{selected.dst_ip || "—"}</dd>
+              <dd className="mono ioc-inline">
+                {selected.dst_ip || "—"}
+                <VtIpLink ip={selected.dst_ip} />
+              </dd>
               <dt>Action</dt>
               <dd className="mono">{selected.action || "—"}</dd>
               <dt>Severity</dt>
