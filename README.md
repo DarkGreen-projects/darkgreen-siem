@@ -9,7 +9,7 @@
 
 Parte del portfolio [DarkGreen Projects](https://github.com/DarkGreen-projects).
 
-![Anteprima dashboard](docs/assets/dashboard-preview.svg)
+<img width="1364" height="1072" alt="image" src="https://github.com/user-attachments/assets/0ef56274-fa05-4a70-9a94-1c8aaf78e3c6" />
 
 ## Cosa fa
 
