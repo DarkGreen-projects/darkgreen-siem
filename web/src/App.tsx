@@ -14,15 +14,15 @@ export default function App() {
       <header className="header">
         <div className="brand">
           <h1>DarkGreen SIEM</h1>
-          <p>Multi-source demo SIEM — ingest, normalize, search, detect</p>
+          <p>Demo SIEM multi-fonte — ingest, normalizzazione, ricerca, detection</p>
         </div>
         <nav className="nav">
           {(
             [
               ["dashboard", "Dashboard"],
-              ["search", "Search"],
-              ["sources", "Sources"],
-              ["detections", "Detections"],
+              ["search", "Ricerca"],
+              ["sources", "Sorgenti"],
+              ["detections", "Detection"],
             ] as const
           ).map(([id, label]) => (
             <button

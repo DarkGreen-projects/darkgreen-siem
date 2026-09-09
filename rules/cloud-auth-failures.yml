@@ -2,6 +2,10 @@ id: cloud-auth-failures
 name: Cloud identity failures
 title: Repeated cloud auth failures
 description: Threshold on cloud_auth login_failed grouped by user.
+threat_brief: >
+  Bursts of cloud sign-in failures may signal credential stuffing against SaaS
+  or IdP accounts. Verify geo/IP unusual for the user, MFA status, and whether
+  legacy auth protocols were used. Correlate with successful logins afterward.
 type: threshold
 severity: high
 enabled: true

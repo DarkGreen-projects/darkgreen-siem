@@ -1,0 +1,12 @@
+id: ui-demo-deny
+name: UI Demo Deny
+title: UI Demo Deny
+threat_brief: Demo rule created via API
+type: match
+severity: medium
+enabled: true
+window_minutes: 10
+cooldown_minutes: 15
+match:
+  action: deny
+  source_type: firewall

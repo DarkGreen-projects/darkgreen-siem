@@ -1,17 +1,17 @@
-# Architecture
+# Architettura
 
-## Overview
+## Panoramica
 
-DarkGreen SIEM is a **portfolio demo** of a multi-source security log pipeline inspired by LogPoint-style collect → normalize → search → detect flows. It is not affiliated with LogPoint/Guardsix and is not production-hardened.
+DarkGreen SIEM è una **demo di portfolio** di una pipeline di log di sicurezza multi-fonte, ispirata ai flussi in stile LogPoint collect → normalize → search → detect. Non è affiliata a LogPoint/Guardsix e non è indurita per la produzione.
 
-## Components
+## Componenti
 
-| Service | Role |
-|---------|------|
-| `postgres` | Event + alert store (JSONB labels) |
-| `api` | FastAPI ingest, search, stats, YAML rule engine, embedded syslog UDP |
-| `web` | React UI (Dashboard, Search, Sources, Detections) behind nginx |
-| `log-generator` | Continuous multi-source demo traffic (HTTP + syslog) |
+| Servizio | Ruolo |
+|----------|-------|
+| `postgres` | Store eventi + alert (label JSONB) |
+| `api` | FastAPI ingest, search, stats, motore regole YAML, syslog UDP embedded |
+| `web` | UI React (Dashboard, Ricerca, Sorgenti, Detection) dietro nginx |
+| `log-generator` | Traffico demo multi-fonte continuo (HTTP + syslog) |
 
 ```mermaid
 flowchart LR
@@ -26,29 +26,29 @@ flowchart LR
   API --> PG
 ```
 
-## Normalized schema (ECS-lite)
+## Schema normalizzato (ECS-lite)
 
 `timestamp`, `source_type`, `vendor`, `device`, `host`, `user`, `src_ip`, `dst_ip`, `action`, `severity`, `message`, `raw`, `labels`, `ingest_channel`
 
-## Source types
+## Tipi di sorgente
 
-1. **firewall** — FortiGate-like syslog KV  
+1. **firewall** — syslog KV in stile FortiGate  
 2. **windows** — Windows Event JSON  
-3. **cloud_auth** — Entra/Okta-style auth  
-4. **siem_export** — EDR/SIEM export JSON (e.g. Cynet-shaped)
+3. **cloud_auth** — auth in stile Entra/Okta  
+4. **siem_export** — export EDR/SIEM JSON (es. shape Cynet)
 
-## Search
+## Ricerca
 
-Demo query language: `field:value` tokens combined with optional free-text (AND is ignored as an operator keyword). Example: `src_ip:203.0.113.45 AND action:deny`.
+Linguaggio query demo: token `field:value` combinati con free-text opzionale (`AND` è ignorato come operatore). Esempio: `src_ip:203.0.113.45 AND action:deny`.
 
 ## Detection
 
-YAML rules under `rules/`:
+Regole YAML sotto `rules/`:
 
-- `type: match` — any recent event matching field filters  
-- `type: threshold` — count ≥ N grouped by a field inside a time window  
+- `type: match` — qualsiasi evento recente che soddisfa i filtri sui campi  
+- `type: threshold` — conteggio ≥ N raggruppato per un campo in una finestra temporale  
 
-## Local ports
+## Porte locali
 
 - UI: http://localhost:8080  
 - API: http://localhost:8000  

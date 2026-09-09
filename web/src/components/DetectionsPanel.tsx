@@ -1,11 +1,17 @@
 import { useEffect, useState } from "react";
 import { api, type Alert, type Rule } from "../api";
+import AlertCard from "./AlertCard";
+import RuleEditorForm from "./RuleEditorForm";
+
+type EditorState = { mode: "create" } | { mode: "edit"; rule: Rule } | null;
 
 export default function DetectionsPanel() {
   const [rules, setRules] = useState<Rule[]>([]);
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [editor, setEditor] = useState<EditorState>(null);
+  const [rowBusy, setRowBusy] = useState<string | null>(null);
 
   const refresh = async () => {
     const [r, a] = await Promise.all([api.rules(), api.alerts()]);
@@ -15,8 +21,7 @@ export default function DetectionsPanel() {
 
   useEffect(() => {
     let alive = true;
-    refresh()
-      .catch((e: Error) => alive && setError(e.message));
+    refresh().catch((e: Error) => alive && setError(e.message));
     const id = setInterval(() => {
       refresh().catch(() => undefined);
     }, 8000);
@@ -25,11 +30,6 @@ export default function DetectionsPanel() {
       clearInterval(id);
     };
   }, []);
-
-  const ack = async (id: number) => {
-    await api.ackAlert(id);
-    await refresh();
-  };
 
   const runNow = async () => {
     setBusy(true);
@@ -44,77 +44,163 @@ export default function DetectionsPanel() {
     }
   };
 
+  const onAlertUpdated = (updated: Alert) => {
+    setAlerts((prev) => prev.map((a) => (a.id === updated.id ? updated : a)));
+  };
+
+  const closeEditor = () => setEditor(null);
+
+  const toggleEnabled = async (rule: Rule) => {
+    setRowBusy(rule.id);
+    setError(null);
+    try {
+      await api.setRuleEnabled(rule.id, !rule.enabled);
+      await refresh();
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setRowBusy(null);
+    }
+  };
+
+  const deleteRule = async (rule: Rule) => {
+    if (!window.confirm(`Eliminare la regola “${rule.id}”? Rimuove il file YAML.`)) return;
+    setRowBusy(rule.id);
+    setError(null);
+    try {
+      await api.deleteRule(rule.id);
+      await refresh();
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setRowBusy(null);
+    }
+  };
+
   return (
     <div className="grid grid-2">
       <div className="panel">
-        <div className="row" style={{ marginBottom: "0.75rem" }}>
-          <h3 style={{ margin: 0, flex: 1 }}>Detection rules</h3>
+        <div className="row" style={{ marginBottom: "0.75rem", alignItems: "center" }}>
+          <h3 style={{ margin: 0, flex: 1 }}>Regole di detection</h3>
+          <button
+            className="ghost"
+            type="button"
+            onClick={() => setEditor({ mode: "create" })}
+            disabled={busy}
+          >
+            Crea regola
+          </button>
           <button className="ghost" type="button" onClick={() => void runNow()} disabled={busy}>
-            {busy ? "Running…" : "Run rules now"}
+            {busy ? "Esecuzione…" : "Esegui regole ora"}
           </button>
         </div>
+        <p className="muted" style={{ marginTop: 0 }}>
+          Rivaluta le regole YAML sugli eventi recenti (come il loop in background). Crea nuovi
+          alert quando match/threshold scattano e il cooldown lo consente.
+        </p>
         {error && <p className="error">{error}</p>}
+
         <div className="list-block">
           {rules.map((r) => (
             <div className="list-item" key={r.id}>
-              <h4>
-                {r.name}{" "}
-                <span className={`badge ${r.severity}`}>{r.severity}</span>{" "}
-                <span className="badge">{r.type}</span>
-              </h4>
-              <p className="muted" style={{ margin: "0.25rem 0" }}>
-                {r.description}
-              </p>
-              <p className="mono muted" style={{ margin: 0 }}>
-                id={r.id} enabled={String(r.enabled)}
-              </p>
+              <div className="row" style={{ alignItems: "flex-start", gap: "0.5rem" }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <h4 style={{ marginTop: 0 }}>
+                    {r.name}{" "}
+                    <span className={`badge ${r.severity}`}>{r.severity}</span>{" "}
+                    <span className="badge">{r.type}</span>{" "}
+                    <span className={`badge ${r.enabled ? "health-ok" : "health-silent"}`}>
+                      {r.enabled ? "abilitata" : "disabilitata"}
+                    </span>
+                  </h4>
+                  <p className="muted" style={{ margin: "0.25rem 0" }}>
+                    {r.description}
+                  </p>
+                  {r.threat_brief && (
+                    <div className="threat-brief">
+                      <strong>Threat brief</strong>
+                      <p>{r.threat_brief}</p>
+                    </div>
+                  )}
+                  <p className="mono muted" style={{ margin: 0 }}>
+                    id={r.id}
+                  </p>
+                </div>
+                <div className="rule-row-actions">
+                  <button
+                    className="ghost"
+                    type="button"
+                    disabled={rowBusy === r.id}
+                    onClick={() => void toggleEnabled(r)}
+                  >
+                    {r.enabled ? "Disabilita" : "Abilita"}
+                  </button>
+                  <button
+                    className="ghost"
+                    type="button"
+                    disabled={rowBusy === r.id}
+                    onClick={() => setEditor({ mode: "edit", rule: r })}
+                  >
+                    Modifica
+                  </button>
+                  <button
+                    className="ghost danger"
+                    type="button"
+                    disabled={rowBusy === r.id}
+                    onClick={() => void deleteRule(r)}
+                  >
+                    Elimina
+                  </button>
+                </div>
+              </div>
             </div>
           ))}
         </div>
       </div>
 
       <div className="panel">
-        <h3 style={{ marginTop: 0 }}>Alerts</h3>
-        <table>
-          <thead>
-            <tr>
-              <th>When</th>
-              <th>Alert</th>
-              <th>Status</th>
-              <th />
-            </tr>
-          </thead>
-          <tbody>
-            {alerts.map((a) => (
-              <tr key={a.id}>
-                <td className="mono">{new Date(a.created_at).toLocaleString()}</td>
-                <td>
-                  <strong>{a.title}</strong>
-                  <div className="muted">{a.description}</div>
-                  <span className={`badge ${a.severity}`}>{a.severity}</span>
-                </td>
-                <td>
-                  <span className={`badge ${a.status}`}>{a.status}</span>
-                </td>
-                <td>
-                  {a.status === "open" && (
-                    <button className="ghost" type="button" onClick={() => void ack(a.id)}>
-                      Ack
-                    </button>
-                  )}
-                </td>
-              </tr>
-            ))}
-            {alerts.length === 0 && (
-              <tr>
-                <td colSpan={4} className="muted">
-                  No alerts — seed data or click “Run rules now”.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+        <h3 style={{ marginTop: 0 }}>Alert</h3>
+        <div className="list-block">
+          {alerts.map((a) => (
+            <AlertCard key={a.id} alert={a} onUpdated={onAlertUpdated} />
+          ))}
+          {alerts.length === 0 && (
+            <p className="muted">
+              Nessun alert — dati seed oppure clicca “Esegui regole ora”.
+            </p>
+          )}
+        </div>
       </div>
+
+      {editor && (
+        <div
+          className="modal-backdrop"
+          role="presentation"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) closeEditor();
+          }}
+        >
+          <div className="modal-panel" role="dialog" aria-modal="true">
+            <div className="modal-header">
+              <span className="muted mono">
+                {editor.mode === "edit" ? editor.rule.id : "nuova regola"}
+              </span>
+              <button className="ghost" type="button" aria-label="Chiudi" onClick={closeEditor}>
+                ×
+              </button>
+            </div>
+            <RuleEditorForm
+              mode={editor.mode}
+              initial={editor.mode === "edit" ? editor.rule : undefined}
+              onCancel={closeEditor}
+              onSaved={() => {
+                closeEditor();
+                void refresh();
+              }}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

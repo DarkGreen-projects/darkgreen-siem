@@ -2,6 +2,10 @@ id: brute-force-windows
 name: Windows brute-force login
 title: Multiple failed Windows logons
 description: More than 5 failed logons for the same user within 10 minutes.
+threat_brief: >
+  Repeated failed logons often indicate password spraying or credential stuffing
+  against a domain account. Check source IP reputation, account lockout status,
+  and whether a later login_success followed from the same host.
 type: threshold
 severity: high
 enabled: true

@@ -29,7 +29,7 @@ services:
       - "8000:8000"
       - "5140:5140/udp"
     volumes:
-      - ./rules:/app/rules:ro
+      - ./rules:/app/rules:rw
       - ./samples:/app/samples:ro
     depends_on:
       postgres:

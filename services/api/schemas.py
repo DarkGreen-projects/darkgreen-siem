@@ -49,6 +49,30 @@ class EventOut(BaseModel):
 class SearchResponse(BaseModel):
     total: int
     events: list[EventOut]
+    alerts: list["AlertSearchHit"] = Field(default_factory=list)
+
+
+class CommentOut(BaseModel):
+    id: int
+    alert_id: int
+    author: str
+    body: str
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class CommentCreate(BaseModel):
+    body: str
+    author: str = "analyst"
+
+
+class StatusUpdate(BaseModel):
+    status: str
+
+
+ALERT_STATUSES = frozenset({"open", "acked", "in_progress", "closed"})
 
 
 class AlertOut(BaseModel):
@@ -60,6 +84,8 @@ class AlertOut(BaseModel):
     description: str
     status: str
     evidence: dict[str, Any]
+    threat_brief: str | None = None
+    comments: list[CommentOut] = Field(default_factory=list)
     created_at: datetime
     acked_at: datetime | None = None
 
@@ -67,14 +93,40 @@ class AlertOut(BaseModel):
         from_attributes = True
 
 
+class AlertSearchHit(AlertOut):
+    matched_comment: str | None = None
+
+
 class RuleOut(BaseModel):
     id: str
     name: str
     description: str = ""
+    threat_brief: str | None = None
     severity: str = "medium"
     type: str
     enabled: bool = True
     definition: dict[str, Any] = Field(default_factory=dict)
+
+
+class RuleCreate(BaseModel):
+    id: str
+    name: str
+    title: str | None = None
+    description: str = ""
+    threat_brief: str = ""
+    type: str = "match"
+    severity: str = "medium"
+    enabled: bool = True
+    window_minutes: int = 10
+    cooldown_minutes: int = 15
+    match: dict[str, Any] = Field(default_factory=dict)
+    threshold: int | None = None
+    group_by: str | None = None
+    overwrite: bool = False
+
+
+class RuleEnabledUpdate(BaseModel):
+    enabled: bool
 
 
 class SourceOut(BaseModel):
@@ -83,7 +135,15 @@ class SourceOut(BaseModel):
     last_event_at: datetime | None = None
 
 
+class SourceHealthOut(BaseModel):
+    source_type: str
+    last_event_at: datetime | None = None
+    silent_for_seconds: int | None = None
+    status: str
+
+
 class StatsOut(BaseModel):
+    range: str = "1h"
     total_events: int
     total_alerts: int
     open_alerts: int
@@ -92,4 +152,8 @@ class StatsOut(BaseModel):
     by_severity: dict[str, int]
     by_channel: dict[str, int]
     timeline: list[dict[str, Any]]
+    source_health: list[SourceHealthOut] = Field(default_factory=list)
     recent_alerts: list[AlertOut]
+
+
+SearchResponse.model_rebuild()

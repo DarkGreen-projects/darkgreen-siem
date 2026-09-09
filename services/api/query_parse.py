@@ -29,3 +29,18 @@ def parse_query(q: str) -> tuple[list[tuple[str, str]], list[str]]:
             if term:
                 free_terms.append(term)
     return field_filters, free_terms
+
+
+def search_terms_from_query(q: str) -> list[str]:
+    """Build text terms used to match alerts/comments (free-text + field values)."""
+    if not q or not q.strip():
+        return []
+    field_filters, free_terms = parse_query(q)
+    terms = list(free_terms)
+    for _field, value in field_filters:
+        if value and value not in terms:
+            terms.append(value)
+    cleaned = q.strip()
+    if cleaned and cleaned not in terms and ":" not in cleaned:
+        terms.append(cleaned)
+    return terms

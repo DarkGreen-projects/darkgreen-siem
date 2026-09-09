@@ -1,31 +1,38 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
-from pathlib import Path
 from typing import Any
 
-import yaml
 from sqlalchemy import and_, func, select
 from sqlalchemy.orm import Session
 
 from .models import Alert, Event
+from .rule_store import (
+    delete_rule,
+    get_rule,
+    load_rules,
+    save_rule,
+    set_rule_enabled,
+)
+from .rule_validate import (
+    RuleConflictError,
+    RuleValidationError,
+    validate_rule_payload,
+)
 
-
-def load_rules(rules_dir: str | Path) -> list[dict[str, Any]]:
-    root = Path(rules_dir)
-    if not root.exists():
-        return []
-    rules: list[dict[str, Any]] = []
-    for path in sorted(root.glob("*.yml")) + sorted(root.glob("*.yaml")):
-        with path.open("r", encoding="utf-8") as fh:
-            data = yaml.safe_load(fh) or {}
-        if not isinstance(data, dict):
-            continue
-        data.setdefault("id", path.stem)
-        data.setdefault("enabled", True)
-        data["_path"] = str(path)
-        rules.append(data)
-    return rules
+__all__ = [
+    "RuleConflictError",
+    "RuleValidationError",
+    "load_rules",
+    "validate_rule_payload",
+    "save_rule",
+    "delete_rule",
+    "set_rule_enabled",
+    "get_rule",
+    "run_rules",
+    "evaluate_match_rule",
+    "evaluate_threshold_rule",
+]
 
 
 def _match_filters(event: Event, filters: dict[str, Any]) -> bool:
@@ -64,6 +71,7 @@ def evaluate_match_rule(db: Session, rule: dict[str, Any]) -> Alert | None:
     if _recent_alert_exists(db, rule["id"], int(rule.get("cooldown_minutes") or window)):
         return None
     sample = hits[0]
+    brief = (rule.get("threat_brief") or "").strip() or None
     return Alert(
         rule_id=rule["id"],
         rule_name=rule.get("name") or rule["id"],
@@ -74,6 +82,7 @@ def evaluate_match_rule(db: Session, rule: dict[str, Any]) -> Alert | None:
         evidence={
             "count": len(hits),
             "event_ids": [h.id for h in hits[:10]],
+            "threat_brief": brief,
             "sample": {
                 "id": sample.id,
                 "user": sample.user,
@@ -119,6 +128,7 @@ def evaluate_threshold_rule(db: Session, rule: dict[str, Any]) -> Alert | None:
         return None
 
     top_key, top_count = rows[0]
+    brief = (rule.get("threat_brief") or "").strip() or None
     return Alert(
         rule_id=rule["id"],
         rule_name=rule.get("name") or rule["id"],
@@ -132,6 +142,7 @@ def evaluate_threshold_rule(db: Session, rule: dict[str, Any]) -> Alert | None:
             "groups": [{"key": str(k), "count": int(c)} for k, c in rows[:10]],
             "threshold": threshold,
             "window_minutes": window,
+            "threat_brief": brief,
         },
     )
 

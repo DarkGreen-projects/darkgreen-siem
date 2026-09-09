@@ -5,23 +5,23 @@
 [![Python](https://img.shields.io/badge/Python-3.12-3776AB?logo=python&logoColor=white)](services/api)
 [![React](https://img.shields.io/badge/React-Vite-61DAFB?logo=react&logoColor=black)](web)
 
-**Multi-source demo SIEM** — collect logs from firewalls, Windows, cloud identity, and EDR/SIEM exports, normalize them into one schema, search like an analyst, and fire YAML detection rules.
+**Demo SIEM multi-fonte** — raccoglie log da firewall, Windows, identity cloud ed export EDR/SIEM, li normalizza in uno schema unico, permette ricerca da analista e attiva regole di detection in YAML.
 
-Part of the [DarkGreen Projects](https://github.com/DarkGreen-projects) portfolio.
+Parte del portfolio [DarkGreen Projects](https://github.com/DarkGreen-projects).
 
-![Dashboard preview](docs/assets/dashboard-preview.svg)
+![Anteprima dashboard](docs/assets/dashboard-preview.svg)
 
-## Why this exists
+## Perché esiste
 
-Commercial SIEMs (LogPoint-style pipelines: collect → normalize → search → alert) are hard to show on a résumé. This repo is a **self-contained lab** you can run in one command — useful, visual, and honest about being a demo (not a production SIEM, not affiliated with LogPoint/Guardsix).
+I SIEM commerciali (pipeline in stile LogPoint: collect → normalize → search → alert) sono difficili da mostrare in un curriculum. Questo repo è un **lab autocontenuto** avviabile con un comando — utile, visuale e trasparente sul fatto di essere una demo (non un SIEM di produzione, non affiliato a LogPoint/Guardsix).
 
-## Quick start
+## Avvio rapido
 
 ```bash
 docker compose up --build
 ```
 
-Open **http://localhost:8080**
+Apri **http://localhost:8080**
 
 | Endpoint | URL |
 |----------|-----|
@@ -29,18 +29,18 @@ Open **http://localhost:8080**
 | API docs | http://localhost:8000/docs |
 | Syslog UDP | `localhost:5140` |
 
-Stop with `Ctrl+C` / `docker compose down`.
+Stop con `Ctrl+C` / `docker compose down`.
 
-## What you get
+## Cosa include
 
-1. **Ingest** — HTTP `/api/ingest`, syslog UDP, startup seed from `samples/`
-2. **Normalize** — 4 source types → ECS-lite fields (`src_ip`, `user`, `action`, `severity`, …)
-3. **Search** — `src_ip:203.0.113.45 AND action:deny` plus free-text
-4. **Dashboard** — EPS, volume timeline, breakdowns, recent alerts
-5. **Detections** — YAML rules (match + threshold) with ack-able alerts
-6. **Live traffic** — `log-generator` keeps sending multi-source events
+1. **Ingest** — HTTP `/api/ingest`, syslog UDP, seed all’avvio da `samples/`
+2. **Normalizzazione** — 4 `source_type` → campi ECS-lite (`src_ip`, `user`, `action`, `severity`, …)
+3. **Ricerca** — `src_ip:203.0.113.45 AND action:deny` più free-text
+4. **Dashboard** — EPS, timeline volumi, breakdown, alert recenti
+5. **Detection** — regole YAML (match + threshold) con workflow alert (ack / commenti)
+6. **Traffico live** — `log-generator` continua a inviare eventi multi-fonte
 
-## Example queries
+## Query di esempio
 
 ```
 action:deny
@@ -49,37 +49,37 @@ source_type:windows AND action:login_failed
 malware
 ```
 
-## Architecture
+## Architettura
 
-See [docs/architecture.md](docs/architecture.md).
+Vedi [docs/architecture.md](docs/architecture.md).
 
 ```text
 samples / syslog / HTTP  →  FastAPI normalizers  →  Postgres
                                       ↓
                               YAML rule engine → alerts
                                       ↓
-                         React UI (Dashboard · Search · Sources · Detections)
+                         React UI (Dashboard · Ricerca · Sorgenti · Detection)
 ```
 
-## Project layout
+## Struttura repository
 
 ```text
 darkgreen-siem/
 ├── docker-compose.yml
-├── rules/                 # detection YAML
-├── samples/               # fictitious multi-vendor logs
+├── rules/                 # regole detection YAML
+├── samples/               # log multi-vendor fittizi
 ├── services/
-│   ├── api/               # FastAPI + syslog listener + rule loop
-│   ├── normalizers/       # ECS-lite parsers
-│   └── log-generator/     # continuous demo traffic
-├── web/                   # React + Vite UI
-└── tests/                 # pytest (normalizers + query parser)
+│   ├── api/               # FastAPI + syslog + loop regole
+│   ├── normalizers/       # parser ECS-lite
+│   └── log-generator/     # traffico demo continuo
+├── web/                   # UI React + Vite
+└── tests/                 # pytest (normalizer + query parser)
 ```
 
-## Local development (without full Compose UI)
+## Sviluppo locale (senza UI Compose completa)
 
 ```bash
-# API deps
+# Dipendenze API
 pip install -r services/api/requirements.txt
 pytest -q
 
@@ -87,26 +87,26 @@ pytest -q
 cd web && npm install && npm run dev
 ```
 
-API expects Postgres (`DATABASE_URL`). Easiest path remains `docker compose up`.
+L’API richiede Postgres (`DATABASE_URL`). Il percorso più semplice resta `docker compose up`.
 
-## Ecosystem
+## Ecosistema
 
-- [soc-automation-hub](https://github.com/DarkGreen-projects/soc-automation-hub) — SOC analyst demos (VT, MITRE planner, SIEM decoder, pivot)
-- [Decoder_SIEMjoson](https://github.com/DarkGreen-projects/Decoder_SIEMjoson) — Python SIEM parse + OSINT enrich
+- [soc-automation-hub](https://github.com/DarkGreen-projects/soc-automation-hub) — demo SOC (VT, MITRE planner, SIEM decoder, pivot)
+- [Decoder_SIEMjoson](https://github.com/DarkGreen-projects/Decoder_SIEMjoson) — parse SIEM Python + arricchimento OSINT
 
-## Inspired by LogPoint-style pipelines
+## Ispirato a pipeline in stile LogPoint
 
-Taxonomy thinking, multi-source normalization, and investigate → alert workflows are familiar to anyone who has tuned a SIEM. This project re-implements a **small educational slice** of that idea under the DarkGreen brand — no vendor code, no production claims.
+Tassonomia, normalizzazione multi-fonte e flussi investigate → alert sono familiari a chi ha configurato un SIEM. Questo progetto ripropone una **fetta educativa** di quell’idea sotto il brand DarkGreen — nessun codice vendor, nessuna pretesa di produzione.
 
-## Security & data
+## Dati e sicurezza
 
-- Samples use **RFC5737** documentation IPs and fictional hosts/users only.
-- Do not point this demo at real production log streams without hardening (auth, TLS, retention, RBAC — out of scope for v0.1).
+- I sample usano solo IP di documentazione **RFC5737** e host/utenti fittizi.
+- Non collegare questa demo a stream di log di produzione senza hardening (auth, TLS, retention, RBAC — fuori scope per v0.1).
 
-## Roadmap (v2 teaser)
+## Roadmap (anteprima v2)
 
-OpenSearch/ClickHouse backend, richer correlation, MITRE mapping UI, optional collectors — contributions welcome once the demo story is solid.
+Backend OpenSearch/ClickHouse, correlazione più ricca, mapping MITRE in UI, collector opzionali — contributi benvenuti quando la storia demo è solida.
 
-## License
+## Licenza
 
-MIT — see [LICENSE](LICENSE).
+MIT — vedi [LICENSE](LICENSE).

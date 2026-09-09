@@ -52,6 +52,18 @@ class Alert(Base):
     acked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
+class AlertComment(Base):
+    __tablename__ = "alert_comments"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    alert_id: Mapped[int] = mapped_column(BigInteger, index=True)
+    author: Mapped[str] = mapped_column(String(128), default="analyst")
+    body: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), index=True
+    )
+
+
 class IngestStat(Base):
     __tablename__ = "ingest_stats"
 
