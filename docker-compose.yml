@@ -1,0 +1,60 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: siem
+      POSTGRES_PASSWORD: siem
+      POSTGRES_DB: darkgreen_siem
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U siem -d darkgreen_siem"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build:
+      context: .
+      dockerfile: services/api/Dockerfile
+    environment:
+      DATABASE_URL: postgresql+psycopg://siem:siem@postgres:5432/darkgreen_siem
+      RULES_DIR: /app/rules
+      SAMPLES_DIR: /app/samples
+      SYSLOG_HOST: 0.0.0.0
+      SYSLOG_PORT: "5140"
+      SEED_ON_START: "true"
+      CORS_ORIGINS: http://localhost:8080,http://127.0.0.1:8080
+    ports:
+      - "8000:8000"
+      - "5140:5140/udp"
+    volumes:
+      - ./rules:/app/rules:ro
+      - ./samples:/app/samples:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  web:
+    build:
+      context: ./web
+      dockerfile: Dockerfile
+    ports:
+      - "8080:80"
+    depends_on:
+      - api
+
+  log-generator:
+    build:
+      context: .
+      dockerfile: services/log-generator/Dockerfile
+    environment:
+      API_URL: http://api:8000
+      SYSLOG_HOST: api
+      SYSLOG_PORT: "5140"
+      INTERVAL_SEC: "2"
+    depends_on:
+      - api
+
+volumes:
+  pgdata:

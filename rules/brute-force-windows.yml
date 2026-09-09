@@ -1,0 +1,14 @@
+id: brute-force-windows
+name: Windows brute-force login
+title: Multiple failed Windows logons
+description: More than 5 failed logons for the same user within 10 minutes.
+type: threshold
+severity: high
+enabled: true
+window_minutes: 10
+threshold: 5
+group_by: user
+cooldown_minutes: 15
+match:
+  action: login_failed
+  source_type: windows

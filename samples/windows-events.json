@@ -1,0 +1,73 @@
+[
+  {
+    "TimeCreated": "2026-09-09T08:10:00Z",
+    "EventID": 4625,
+    "Computer": "win-dc01.lab.local",
+    "TargetUserName": "j.doe",
+    "IpAddress": "203.0.113.45",
+    "LogonType": 3,
+    "Message": "An account failed to log on"
+  },
+  {
+    "TimeCreated": "2026-09-09T08:10:12Z",
+    "EventID": 4625,
+    "Computer": "win-dc01.lab.local",
+    "TargetUserName": "j.doe",
+    "IpAddress": "203.0.113.45",
+    "LogonType": 3,
+    "Message": "An account failed to log on"
+  },
+  {
+    "TimeCreated": "2026-09-09T08:10:25Z",
+    "EventID": 4625,
+    "Computer": "win-dc01.lab.local",
+    "TargetUserName": "j.doe",
+    "IpAddress": "203.0.113.45",
+    "LogonType": 3,
+    "Message": "An account failed to log on"
+  },
+  {
+    "TimeCreated": "2026-09-09T08:10:40Z",
+    "EventID": 4625,
+    "Computer": "win-dc01.lab.local",
+    "TargetUserName": "j.doe",
+    "IpAddress": "203.0.113.45",
+    "LogonType": 3,
+    "Message": "An account failed to log on"
+  },
+  {
+    "TimeCreated": "2026-09-09T08:10:55Z",
+    "EventID": 4625,
+    "Computer": "win-dc01.lab.local",
+    "TargetUserName": "j.doe",
+    "IpAddress": "203.0.113.45",
+    "LogonType": 3,
+    "Message": "An account failed to log on"
+  },
+  {
+    "TimeCreated": "2026-09-09T08:11:10Z",
+    "EventID": 4625,
+    "Computer": "win-dc01.lab.local",
+    "TargetUserName": "j.doe",
+    "IpAddress": "203.0.113.45",
+    "LogonType": 3,
+    "Message": "An account failed to log on"
+  },
+  {
+    "TimeCreated": "2026-09-09T08:12:00Z",
+    "EventID": 4624,
+    "Computer": "win-dc01.lab.local",
+    "TargetUserName": "a.admin",
+    "IpAddress": "10.0.20.8",
+    "LogonType": 10,
+    "Message": "An account was successfully logged on"
+  },
+  {
+    "TimeCreated": "2026-09-09T08:15:00Z",
+    "EventID": 4688,
+    "Computer": "win-ws42.lab.local",
+    "TargetUserName": "svc.backup",
+    "NewProcessName": "C:\\\\Windows\\\\Temp\\\\payload.exe",
+    "Message": "A new process has been created"
+  }
+]

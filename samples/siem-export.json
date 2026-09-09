@@ -1,0 +1,40 @@
+[
+  {
+    "AlertId": "CY-10042",
+    "DetectionTime": "2026-09-09T08:30:00Z",
+    "Product": "Cynet",
+    "Severity": "high",
+    "Hostname": "win-ws42.lab.local",
+    "User": "svc.backup",
+    "SourceIP": "10.0.20.42",
+    "Activity": "Malware Detected",
+    "Description": "Suspicious executable flagged on endpoint",
+    "category": "malware",
+    "mitre": "T1204"
+  },
+  {
+    "AlertId": "CY-10055",
+    "DetectionTime": "2026-09-09T08:35:00Z",
+    "Product": "Cynet",
+    "Severity": "medium",
+    "Hostname": "win-dc01.lab.local",
+    "User": "j.doe",
+    "SourceIP": "203.0.113.45",
+    "Activity": "Brute Force Suspect",
+    "Description": "Multiple failed authentications correlated",
+    "category": "credential_access",
+    "mitre": "T1110"
+  },
+  {
+    "id": "APP-9",
+    "timestamp": "2026-09-09T08:40:00Z",
+    "vendor": "CustomApp",
+    "host": "app-api-01",
+    "user": "api-client",
+    "src_ip": "10.0.50.3",
+    "action": "token_reuse",
+    "severity": "low",
+    "message": "Refresh token reused from new IP",
+    "category": "session"
+  }
+]

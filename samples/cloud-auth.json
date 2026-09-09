@@ -1,0 +1,62 @@
+[
+  {
+    "timestamp": "2026-09-09T08:20:00Z",
+    "vendor": "EntraID",
+    "app": "Microsoft 365",
+    "user": "j.doe@contoso.example",
+    "ip": "198.51.100.22",
+    "result": "failure",
+    "action": "login_failed",
+    "mfa": false,
+    "geo": "FI",
+    "message": "Interactive sign-in failure"
+  },
+  {
+    "timestamp": "2026-09-09T08:20:30Z",
+    "vendor": "EntraID",
+    "app": "Microsoft 365",
+    "user": "j.doe@contoso.example",
+    "ip": "198.51.100.22",
+    "result": "failure",
+    "action": "login_failed",
+    "mfa": false,
+    "geo": "FI",
+    "message": "Interactive sign-in failure"
+  },
+  {
+    "timestamp": "2026-09-09T08:21:00Z",
+    "vendor": "EntraID",
+    "app": "Microsoft 365",
+    "user": "j.doe@contoso.example",
+    "ip": "198.51.100.22",
+    "result": "failure",
+    "action": "login_failed",
+    "mfa": false,
+    "geo": "FI",
+    "message": "Interactive sign-in failure"
+  },
+  {
+    "timestamp": "2026-09-09T08:22:00Z",
+    "vendor": "Okta",
+    "app": "VPN Portal",
+    "user": "a.admin@contoso.example",
+    "ip": "10.0.20.8",
+    "result": "success",
+    "action": "login_success",
+    "mfa": true,
+    "geo": "IT",
+    "message": "MFA success"
+  },
+  {
+    "timestamp": "2026-09-09T08:25:00Z",
+    "vendor": "EntraID",
+    "app": "Azure Portal",
+    "user": "ext.vendor@partner.example",
+    "ip": "203.0.113.200",
+    "result": "failure",
+    "action": "login_failed",
+    "mfa": false,
+    "geo": "US",
+    "message": "Legacy auth blocked"
+  }
+]

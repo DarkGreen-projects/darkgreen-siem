@@ -1,0 +1,12 @@
+id: firewall-deny-burst
+name: Firewall deny from external IP
+title: External firewall deny observed
+description: Match deny actions on firewall events (demo match rule).
+type: match
+severity: medium
+enabled: true
+window_minutes: 30
+cooldown_minutes: 20
+match:
+  source_type: firewall
+  action: deny

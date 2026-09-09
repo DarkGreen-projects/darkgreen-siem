@@ -1,0 +1,317 @@
+:root {
+  --bg: #0b1f17;
+  --bg-panel: #122820;
+  --bg-elevated: #1a3328;
+  --border: #2d4a3c;
+  --text: #e8f5ef;
+  --text-muted: #9bb8a8;
+  --accent: #3ddc97;
+  --accent-hover: #6ef0b8;
+  --danger: #f38ba8;
+  --warn: #c47a2a;
+  --ok: #3d8b5e;
+  --radius: 8px;
+  --font: "IBM Plex Sans", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, monospace;
+}
+
+* { box-sizing: border-box; }
+
+html, body, #root {
+  margin: 0;
+  min-height: 100%;
+}
+
+body {
+  font-family: var(--font);
+  background:
+    radial-gradient(ellipse 80% 50% at 10% -10%, #1a4a35 0%, transparent 55%),
+    radial-gradient(ellipse 60% 40% at 100% 0%, #0f2e22 0%, transparent 45%),
+    var(--bg);
+  color: var(--text);
+}
+
+.app {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 1.25rem 1.5rem 3rem;
+}
+
+.header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 1rem;
+}
+
+.brand {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.brand h1 {
+  margin: 0;
+  font-size: 1.75rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--accent);
+}
+
+.brand p {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.95rem;
+}
+
+.nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.nav button {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  padding: 0.45rem 0.85rem;
+  border-radius: var(--radius);
+  cursor: pointer;
+  font: inherit;
+}
+
+.nav button:hover {
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+.nav button.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #0b1f17;
+  font-weight: 600;
+}
+
+.panel {
+  background: color-mix(in srgb, var(--bg-panel) 92%, transparent);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1rem 1.1rem;
+  margin-bottom: 1rem;
+}
+
+.grid {
+  display: grid;
+  gap: 1rem;
+}
+
+.grid-4 {
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+}
+
+.grid-2 {
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+}
+
+.stat-card h3 {
+  margin: 0 0 0.35rem;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.stat-card strong {
+  font-size: 1.6rem;
+  font-family: var(--mono);
+  color: var(--accent);
+}
+
+.muted { color: var(--text-muted); }
+.mono { font-family: var(--mono); font-size: 0.85rem; }
+
+label {
+  display: block;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  margin-bottom: 0.35rem;
+}
+
+input, select, textarea {
+  width: 100%;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: var(--radius);
+  padding: 0.55rem 0.7rem;
+  font: inherit;
+}
+
+input:focus, select:focus, textarea:focus {
+  outline: 1px solid var(--accent);
+  border-color: var(--accent);
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: flex-end;
+}
+
+.row > * { flex: 1; min-width: 140px; }
+
+button.primary, .btn {
+  background: var(--accent);
+  color: #0b1f17;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  padding: 0.55rem 1rem;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+button.primary:hover, .btn:hover {
+  background: var(--accent-hover);
+}
+
+button.ghost {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: var(--radius);
+  padding: 0.4rem 0.75rem;
+  font: inherit;
+  cursor: pointer;
+}
+
+button.ghost:hover {
+  border-color: var(--accent);
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+th, td {
+  text-align: left;
+  padding: 0.55rem 0.45rem;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+}
+
+th {
+  color: var(--text-muted);
+  font-weight: 500;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+tr.clickable { cursor: pointer; }
+tr.clickable:hover td { background: var(--bg-elevated); }
+
+.badge {
+  display: inline-block;
+  padding: 0.15rem 0.45rem;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-family: var(--mono);
+  border: 1px solid var(--border);
+}
+
+.badge.critical, .badge.high { color: var(--danger); border-color: var(--danger); }
+.badge.medium { color: var(--warn); border-color: var(--warn); }
+.badge.low, .badge.info { color: var(--accent); border-color: var(--border); }
+.badge.open { color: var(--danger); }
+.badge.acked { color: var(--ok); }
+
+.bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+  height: 100px;
+  margin-top: 0.75rem;
+}
+
+.bars .bar {
+  flex: 1;
+  background: linear-gradient(180deg, var(--accent-hover), var(--accent));
+  border-radius: 3px 3px 0 0;
+  min-height: 2px;
+  opacity: 0.85;
+}
+
+.drawer-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  justify-content: flex-end;
+  z-index: 20;
+}
+
+.drawer {
+  width: min(480px, 100%);
+  background: var(--bg-panel);
+  border-left: 1px solid var(--border);
+  padding: 1.25rem;
+  overflow: auto;
+  animation: slideIn 0.2s ease-out;
+}
+
+@keyframes slideIn {
+  from { transform: translateX(24px); opacity: 0.6; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+.kv { display: grid; grid-template-columns: 120px 1fr; gap: 0.35rem 0.75rem; }
+.kv dt { color: var(--text-muted); }
+.kv dd { margin: 0; word-break: break-word; }
+
+pre.raw {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.75rem;
+  overflow: auto;
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  white-space: pre-wrap;
+}
+
+.list-block {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.list-item {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.75rem;
+  background: var(--bg-elevated);
+}
+
+.list-item h4 {
+  margin: 0 0 0.25rem;
+  font-size: 0.95rem;
+}
+
+.error {
+  color: var(--danger);
+  margin: 0.5rem 0;
+}
+
+@media (max-width: 720px) {
+  .app { padding: 1rem; }
+  .brand h1 { font-size: 1.35rem; }
+}

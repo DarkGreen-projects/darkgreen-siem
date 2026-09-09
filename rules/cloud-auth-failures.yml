@@ -1,0 +1,14 @@
+id: cloud-auth-failures
+name: Cloud identity failures
+title: Repeated cloud auth failures
+description: Threshold on cloud_auth login_failed grouped by user.
+type: threshold
+severity: high
+enabled: true
+window_minutes: 15
+threshold: 3
+group_by: user
+cooldown_minutes: 15
+match:
+  source_type: cloud_auth
+  action: login_failed

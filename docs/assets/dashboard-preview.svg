@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="680" viewBox="0 0 1200 680">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0b1f17"/>
+      <stop offset="100%" stop-color="#122820"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="680" fill="url(#bg)"/>
+  <text x="48" y="64" fill="#3ddc97" font-family="Segoe UI, Arial" font-size="36" font-weight="700">DarkGreen SIEM</text>
+  <text x="48" y="100" fill="#9bb8a8" font-family="Segoe UI, Arial" font-size="18">Dashboard  multi-source ingest · search · detections</text>
+  <rect x="48" y="140" width="250" height="110" rx="8" fill="#1a3328" stroke="#2d4a3c"/>
+  <text x="68" y="175" fill="#9bb8a8" font-size="14" font-family="Segoe UI, Arial">EVENTS</text>
+  <text x="68" y="220" fill="#3ddc97" font-size="40" font-family="Consolas, monospace">1,284</text>
+  <rect x="322" y="140" width="250" height="110" rx="8" fill="#1a3328" stroke="#2d4a3c"/>
+  <text x="342" y="175" fill="#9bb8a8" font-size="14" font-family="Segoe UI, Arial">EPS</text>
+  <text x="342" y="220" fill="#3ddc97" font-size="40" font-family="Consolas, monospace">0.42</text>
+  <rect x="596" y="140" width="250" height="110" rx="8" fill="#1a3328" stroke="#2d4a3c"/>
+  <text x="616" y="175" fill="#9bb8a8" font-size="14" font-family="Segoe UI, Arial">OPEN ALERTS</text>
+  <text x="616" y="220" fill="#3ddc97" font-size="40" font-family="Consolas, monospace">4</text>
+  <rect x="870" y="140" width="282" height="110" rx="8" fill="#1a3328" stroke="#2d4a3c"/>
+  <text x="890" y="175" fill="#9bb8a8" font-size="14" font-family="Segoe UI, Arial">SOURCES</text>
+  <text x="890" y="220" fill="#3ddc97" font-size="28" font-family="Consolas, monospace">fw · win · cloud · edr</text>
+  <rect x="48" y="280" width="1104" height="340" rx="8" fill="#122820" stroke="#2d4a3c"/>
+  <text x="68" y="320" fill="#9bb8a8" font-size="14" font-family="Segoe UI, Arial">SEARCH  src_ip:203.0.113.45 AND action:deny</text>
+  <rect x="68" y="345" width="1064" height="1" fill="#2d4a3c"/>
+  <text x="68" y="385" fill="#e8f5ef" font-size="15" font-family="Consolas, monospace">08:04  firewall  high  deny  203.0.113.88 ’ 10.0.10.5  RDP probe blocked</text>
+  <text x="68" y="425" fill="#e8f5ef" font-size="15" font-family="Consolas, monospace">08:02  firewall  high  deny  10.0.20.15 ’ 198.51.100.80  SSH deny</text>
+  <text x="68" y="465" fill="#e8f5ef" font-size="15" font-family="Consolas, monospace">08:10  windows   high  login_failed  j.doe @ 203.0.113.45</text>
+  <text x="68" y="520" fill="#3ddc97" font-size="16" font-family="Segoe UI, Arial">docker compose up --build  ’  http://localhost:8080</text>
+  <text x="68" y="560" fill="#9bb8a8" font-size="14" font-family="Segoe UI, Arial">DarkGreen Projects · portfolio demo SIEM</text>
+</svg>
