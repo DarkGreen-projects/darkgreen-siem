@@ -5,7 +5,7 @@
 [![Python](https://img.shields.io/badge/Python-3.12-3776AB?logo=python&logoColor=white)](services/api)
 [![React](https://img.shields.io/badge/React-Vite-61DAFB?logo=react&logoColor=black)](web)
 
-**Demo SIEM multi-fonte** in un comando: ingest, normalizzazione ECS-lite, ricerca da analista, dashboard e detection YAML — con workflow alert e link VirusTotal sugli IOC.
+**Demo SIEM multi-fonte** in un comando: ingest, normalizzazione ECS-lite, ricerca da analista, dashboard e detection YAML con workflow alert e link VirusTotal sugli IOC.
 
 Parte del portfolio [DarkGreen Projects](https://github.com/DarkGreen-projects).
 
