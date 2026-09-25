@@ -24,6 +24,9 @@ FIELD_MAP = {
     "device": Event.device,
     "ingest_channel": Event.ingest_channel,
     "message": Event.message,
+    "event_id": Event.event_id,
+    "channel": Event.channel,
+    "provider": Event.provider,
 }
 
 

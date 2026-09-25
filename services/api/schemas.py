@@ -94,6 +94,9 @@ class EventOut(BaseModel):
     raw: str
     labels: dict[str, Any] = Field(default_factory=dict)
     ingest_channel: str
+    event_id: str | None = None
+    channel: str | None = None
+    provider: str | None = None
 
     class Config:
         from_attributes = True
@@ -237,6 +240,7 @@ class StatsOut(BaseModel):
     by_source_type: dict[str, int]
     by_severity: dict[str, int]
     by_channel: dict[str, int]
+    by_alert_status: dict[str, int] = Field(default_factory=dict)
     timeline: list[dict[str, Any]]
     source_health: list[SourceHealthOut] = Field(default_factory=list)
     recent_alerts: list[AlertOut]

@@ -25,6 +25,11 @@ services:
       SYSLOG_PORT: "5140"
       SEED_ON_START: "true"
       CORS_ORIGINS: http://localhost:8080,http://127.0.0.1:8080
+      AUTH_ENABLED: "true"
+      DEMO_USERNAME: analyst
+      DEMO_PASSWORD: darkgreen
+      AUTH_SECRET: darkgreen-siem-compose-secret
+      SIEM_API_TOKEN: dg-lab-token-compose
     ports:
       - "8000:8000"
       - "5140:5140/udp"
@@ -53,6 +58,7 @@ services:
       SYSLOG_HOST: api
       SYSLOG_PORT: "5140"
       INTERVAL_SEC: "2"
+      SIEM_API_TOKEN: dg-lab-token-compose
     depends_on:
       - api
 

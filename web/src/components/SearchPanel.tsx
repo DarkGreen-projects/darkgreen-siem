@@ -323,26 +323,36 @@ export default function SearchPanel() {
               <dd className="mono">{selected.timestamp}</dd>
               <dt>Sorgente</dt>
               <dd className="mono">{selected.source_type}</dd>
-              <dt>Canale</dt>
+              <dt>Canale ingest</dt>
               <dd className="mono">{selected.ingest_channel}</dd>
+              {(selected.event_id || selected.channel || selected.provider) && (
+                <>
+                  <dt>Event ID</dt>
+                  <dd className="mono">{selected.event_id || "-"}</dd>
+                  <dt>Channel</dt>
+                  <dd className="mono">{selected.channel || "-"}</dd>
+                  <dt>Provider</dt>
+                  <dd className="mono">{selected.provider || "-"}</dd>
+                </>
+              )}
               <dt>Vendor</dt>
-              <dd>{selected.vendor || "—"}</dd>
+              <dd>{selected.vendor || "-"}</dd>
               <dt>Host</dt>
-              <dd>{selected.host || "—"}</dd>
+              <dd>{selected.host || "-"}</dd>
               <dt>User</dt>
-              <dd>{selected.user || "—"}</dd>
+              <dd>{selected.user || "-"}</dd>
               <dt>Src IP</dt>
               <dd className="mono ioc-inline">
-                {selected.src_ip || "—"}
+                {selected.src_ip || "-"}
                 <VtIpLink ip={selected.src_ip} />
               </dd>
               <dt>Dst IP</dt>
               <dd className="mono ioc-inline">
-                {selected.dst_ip || "—"}
+                {selected.dst_ip || "-"}
                 <VtIpLink ip={selected.dst_ip} />
               </dd>
               <dt>Action</dt>
-              <dd className="mono">{selected.action || "—"}</dd>
+              <dd className="mono">{selected.action || "-"}</dd>
               <dt>Severity</dt>
               <dd>
                 <span className={`badge ${selected.severity}`}>{selected.severity}</span>

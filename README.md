@@ -18,7 +18,7 @@ Parte del portfolio [DarkGreen Projects](https://github.com/DarkGreen-projects).
 | **Ingest** | HTTP `/api/ingest`, syslog UDP `5140`, seed da `samples/`, traffico continuo via `log-generator` |
 | **Normalizzazione** | 4 `source_type` (`firewall`, `windows`, `cloud_auth`, `siem_export`) → schema ECS-lite |
 | **Ricerca** | Query `field:value` + free-text; hit anche su alert/commenti |
-| **Dashboard** | EPS, timeline per sorgente, health strip, alert recenti |
+| **Dashboard** | EPS, timeline per sorgente, health strip, filtri/conteggi per stato alert |
 | **Detection** | Regole YAML match/threshold; CRUD da UI (modal); enable/disable |
 | **Alert workflow** | Stati open / ack / in corso / chiuso + commenti |
 | **Sorgenti** | Canali live + onboarding agent (UI demo, download barrati) |
@@ -30,7 +30,7 @@ Parte del portfolio [DarkGreen Projects](https://github.com/DarkGreen-projects).
 docker compose up --build
 ```
 
-Apri **http://localhost:8080**
+Apri **http://localhost:8080** e accedi con le credenziali lab (default `analyst` / `darkgreen`).
 
 | Endpoint | URL |
 |----------|-----|
@@ -39,6 +39,15 @@ Apri **http://localhost:8080**
 | Syslog UDP | `localhost:5140` |
 
 Stop: `Ctrl+C` oppure `docker compose down`.
+
+### Auth lab (abilitata di default)
+
+In Compose l’API richiede un Bearer token su `/api/*` (eccetto `POST /api/auth/login` e `/health`):
+
+- **UI**: login username/password → token HMAC (TTL ~12h) in `localStorage`
+- **Credenziali demo**: `DEMO_USERNAME` / `DEMO_PASSWORD` (default `analyst` / `darkgreen`)
+- **Ingest / log-generator**: header `Authorization: Bearer <SIEM_API_TOKEN>`
+- **Playground aperto**: imposta `AUTH_ENABLED=false` sull’API per disabilitare il gate
 
 ## Query di esempio
 
@@ -99,9 +108,9 @@ L’API richiede Postgres (`DATABASE_URL`). Il percorso più semplice resta `doc
 ## Dati e sicurezza
 
 - Sample con IP **RFC5737** e host/utenti fittizi.
-- **Demo senza autenticazione** — non esporre API/UI su Internet; lab locale one-click.
+- **Auth lab abilitata di default** (login + `SIEM_API_TOKEN`); resta un lab locale, non esporre su Internet senza hardening.
 - Limiti di input, allowlist, escape LIKE, header di sicurezza base su nginx.
-- Non collegare stream di produzione senza hardening (auth, TLS, retention, RBAC — fuori scope v0.1).
+- Non collegare stream di produzione senza hardening ulteriore (TLS, retention, RBAC - fuori scope v0.1).
 
 ## Licenza
 

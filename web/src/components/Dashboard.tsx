@@ -4,6 +4,7 @@ import {
   api,
   formatSilence,
   type Alert,
+  type AlertStatus,
   type Stats,
   type StatsRange,
 } from "../api";
@@ -19,10 +20,20 @@ const RANGES: { id: StatsRange; label: string }[] = [
 
 const SOURCE_ORDER = ["firewall", "windows", "cloud_auth", "siem_export"];
 
+const STATUS_FILTERS: { id: AlertStatus | "all"; label: string }[] = [
+  { id: "all", label: "Tutti" },
+  { id: "open", label: "Aperti" },
+  { id: "acked", label: "Ack" },
+  { id: "in_progress", label: "In corso" },
+  { id: "closed", label: "Chiusi" },
+];
+
 export default function Dashboard() {
   const [range, setRange] = useState<StatsRange>("1h");
   const [stats, setStats] = useState<Stats | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [statusFilter, setStatusFilter] = useState<AlertStatus | "all">("all");
+  const [filteredAlerts, setFilteredAlerts] = useState<Alert[] | null>(null);
 
   useEffect(() => {
     let alive = true;
@@ -44,6 +55,29 @@ export default function Dashboard() {
     };
   }, [range]);
 
+  useEffect(() => {
+    if (statusFilter === "all") {
+      setFilteredAlerts(null);
+      return;
+    }
+    let alive = true;
+    const load = () =>
+      api
+        .alerts(statusFilter)
+        .then((list) => {
+          if (alive) setFilteredAlerts(list);
+        })
+        .catch(() => {
+          if (alive) setFilteredAlerts([]);
+        });
+    load();
+    const id = setInterval(load, 5000);
+    return () => {
+      alive = false;
+      clearInterval(id);
+    };
+  }, [statusFilter]);
+
   const sourcesInChart = useMemo(() => {
     if (!stats) return SOURCE_ORDER;
     const seen = new Set<string>(SOURCE_ORDER);
@@ -61,6 +95,26 @@ export default function Dashboard() {
 
   const maxBucket = Math.max(1, ...stats.timeline.map((t) => t.count));
   const rangeLabel = RANGES.find((r) => r.id === range)?.label ?? range;
+  const byStatus = stats.by_alert_status || {};
+  const openCount = byStatus.open ?? stats.open_alerts;
+  const alertsShown =
+    statusFilter === "all" ? stats.recent_alerts : filteredAlerts ?? [];
+
+  const patchAlert = (updated: Alert) => {
+    setStats((prev) =>
+      prev
+        ? {
+            ...prev,
+            recent_alerts: prev.recent_alerts.map((x) =>
+              x.id === updated.id ? updated : x
+            ),
+          }
+        : prev
+    );
+    setFilteredAlerts((prev) =>
+      prev ? prev.map((x) => (x.id === updated.id ? updated : x)) : prev
+    );
+  };
 
   return (
     <>
@@ -75,11 +129,36 @@ export default function Dashboard() {
         </div>
         <div className="panel stat-card">
           <h3>Alert aperti</h3>
-          <strong>{stats.open_alerts}</strong>
+          <strong>{openCount}</strong>
         </div>
         <div className="panel stat-card">
           <h3>Alert totali</h3>
           <strong>{stats.total_alerts}</strong>
+        </div>
+      </div>
+
+      <div className="panel">
+        <h3 className="muted" style={{ marginTop: 0 }}>
+          Stato alert
+        </h3>
+        <div className="status-filter-row" role="group" aria-label="Filtro stato alert">
+          {STATUS_FILTERS.map((f) => {
+            const count =
+              f.id === "all"
+                ? stats.total_alerts
+                : byStatus[f.id] ?? 0;
+            return (
+              <button
+                key={f.id}
+                type="button"
+                className={`status-filter-btn${statusFilter === f.id ? " active" : ""}`}
+                onClick={() => setStatusFilter(f.id)}
+              >
+                {f.label}
+                <span className="count">{count}</span>
+              </button>
+            );
+          })}
         </div>
       </div>
 
@@ -159,7 +238,7 @@ export default function Dashboard() {
                 </div>
                 <div className="muted mono" style={{ fontSize: "0.8rem" }}>
                   ultimo:{" "}
-                  {h.last_event_at ? new Date(h.last_event_at).toLocaleString() : "—"}
+                  {h.last_event_at ? new Date(h.last_event_at).toLocaleString() : "-"}
                 </div>
                 <div className="muted" style={{ fontSize: "0.8rem" }}>
                   silenzio da {formatSilence(h.silent_for_seconds)}
@@ -200,28 +279,18 @@ export default function Dashboard() {
       </div>
 
       <div className="panel">
-        <h3 className="muted">Alert recenti</h3>
-        {stats.recent_alerts.length === 0 ? (
-          <p className="muted">Nessun alert ancora.</p>
+        <h3 className="muted">
+          Alert{" "}
+          {statusFilter === "all"
+            ? "recenti"
+            : STATUS_FILTERS.find((f) => f.id === statusFilter)?.label.toLowerCase()}
+        </h3>
+        {alertsShown.length === 0 ? (
+          <p className="muted">Nessun alert in questo filtro.</p>
         ) : (
           <div className="list-block">
-            {stats.recent_alerts.map((a) => (
-              <AlertCard
-                key={a.id}
-                alert={a}
-                onUpdated={(updated: Alert) => {
-                  setStats((prev) =>
-                    prev
-                      ? {
-                          ...prev,
-                          recent_alerts: prev.recent_alerts.map((x) =>
-                            x.id === updated.id ? updated : x
-                          ),
-                        }
-                      : prev
-                  );
-                }}
-              />
+            {alertsShown.map((a) => (
+              <AlertCard key={a.id} alert={a} onUpdated={patchAlert} />
             ))}
           </div>
         )}

@@ -4,3 +4,6 @@
 <134>date=2026-09-09 time=08:03:10 devname="fw-edge-01" srcip=10.0.20.15 dstip=192.0.2.10 srcport=50022 dstport=443 proto=tcp action=accept policyid=8 msg="web allow"
 <134>date=2026-09-09 time=08:04:01 devname="fw-edge-01" srcip=203.0.113.88 dstip=10.0.10.5 srcport=33333 dstport=3389 proto=tcp action=deny policyid=99 msg="RDP probe blocked"
 <134>date=2026-09-09 time=08:05:22 devname="fw-edge-01" srcip=10.0.30.2 dstip=8.8.8.8 srcport=53111 dstport=53 proto=udp action=accept policyid=3 msg="DNS allow"
+<134>date=2026-09-09 time=08:06:05 devname="fw-edge-01" srcip=10.0.20.15 dstip=203.0.113.200 srcport=51234 dstport=443 proto=tcp action=deny policyid=77 msg="deny to hot dst demo"
+<134>date=2026-09-09 time=08:06:40 devname="fw-edge-01" srcip=10.0.50.3 dstip=198.51.100.200 srcport=49876 dstport=8080 proto=tcp action=deny policyid=78 msg="deny to hot dst demo"
+<134>date=2026-09-09 time=08:07:15 devname="fw-edge-01" srcip=10.0.30.2 dstip=192.0.2.200 srcport=45555 dstport=22 proto=tcp action=deny policyid=79 msg="deny to hot dst demo"

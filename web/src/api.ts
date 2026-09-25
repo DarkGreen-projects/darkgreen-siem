@@ -1,3 +1,6 @@
+const TOKEN_KEY = "darkgreen-siem.auth-token";
+const USER_KEY = "darkgreen-siem.auth-user";
+
 export type SiemEvent = {
   id: number;
   timestamp: string;
@@ -14,6 +17,9 @@ export type SiemEvent = {
   raw: string;
   labels: Record<string, unknown>;
   ingest_channel: string;
+  event_id?: string | null;
+  channel?: string | null;
+  provider?: string | null;
 };
 
 export type AlertStatus = "open" | "acked" | "in_progress" | "closed";
@@ -103,6 +109,7 @@ export type Stats = {
   by_source_type: Record<string, number>;
   by_severity: Record<string, number>;
   by_channel: Record<string, number>;
+  by_alert_status: Record<string, number>;
   timeline: TimelineBucket[];
   source_health: SourceHealth[];
   recent_alerts: Alert[];
@@ -115,15 +122,75 @@ export const SOURCE_COLORS: Record<string, string> = {
   siem_export: "#f38ba8",
 };
 
-async function getJson<T>(url: string): Promise<T> {
-  const res = await fetch(url);
-  if (!res.ok) {
-    throw new Error(`${res.status} ${res.statusText}`);
+export function getStoredToken(): string | null {
+  try {
+    return localStorage.getItem(TOKEN_KEY);
+  } catch {
+    return null;
   }
+}
+
+export function getStoredUsername(): string | null {
+  try {
+    return localStorage.getItem(USER_KEY);
+  } catch {
+    return null;
+  }
+}
+
+export function setAuthSession(token: string, username: string) {
+  localStorage.setItem(TOKEN_KEY, token);
+  localStorage.setItem(USER_KEY, username);
+}
+
+export function clearAuthSession() {
+  localStorage.removeItem(TOKEN_KEY);
+  localStorage.removeItem(USER_KEY);
+}
+
+function authHeaders(extra?: Record<string, string>): Record<string, string> {
+  const headers: Record<string, string> = { ...(extra || {}) };
+  const token = getStoredToken();
+  if (token) headers.Authorization = `Bearer ${token}`;
+  return headers;
+}
+
+export class AuthError extends Error {
+  constructor(message = "Authentication required") {
+    super(message);
+    this.name = "AuthError";
+  }
+}
+
+async function handleRes<T>(res: Response): Promise<T> {
+  if (res.status === 401) {
+    clearAuthSession();
+    throw new AuthError();
+  }
+  if (!res.ok) {
+    let detail = `${res.status} ${res.statusText}`;
+    try {
+      const body = (await res.json()) as { detail?: string };
+      if (body.detail) detail = typeof body.detail === "string" ? body.detail : detail;
+    } catch {
+      /* ignore */
+    }
+    throw new Error(detail);
+  }
+  if (res.status === 204) return undefined as T;
   return res.json() as Promise<T>;
 }
 
+async function getJson<T>(url: string): Promise<T> {
+  const res = await fetch(url, { headers: authHeaders() });
+  return handleRes<T>(res);
+}
+
 async function ruleMutationError(res: Response): Promise<never> {
+  if (res.status === 401) {
+    clearAuthSession();
+    throw new AuthError();
+  }
   let detail = res.statusText;
   try {
     const body = (await res.json()) as { detail?: string };
@@ -135,6 +202,27 @@ async function ruleMutationError(res: Response): Promise<never> {
 }
 
 export const api = {
+  login: async (username: string, password: string) => {
+    const res = await fetch("/api/auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username, password }),
+    });
+    if (!res.ok) {
+      let detail = "Login fallito";
+      try {
+        const body = (await res.json()) as { detail?: string };
+        if (body.detail) detail = body.detail;
+      } catch {
+        /* ignore */
+      }
+      throw new Error(detail);
+    }
+    const data = (await res.json()) as { token: string; expires_at: number; username: string };
+    setAuthSession(data.token, data.username);
+    return data;
+  },
+  me: () => getJson<{ username: string; kind: string }>("/api/auth/me"),
   stats: (range: StatsRange | string = "1h") =>
     getJson<Stats>(`/api/stats?range=${encodeURIComponent(range)}`),
   sources: () => getJson<Source[]>("/api/sources"),
@@ -142,7 +230,7 @@ export const api = {
   createRule: async (payload: RuleCreatePayload) => {
     const res = await fetch("/api/rules", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: authHeaders({ "Content-Type": "application/json" }),
       body: JSON.stringify(payload),
     });
     if (!res.ok) await ruleMutationError(res);
@@ -151,20 +239,23 @@ export const api = {
   updateRule: async (id: string, payload: RuleCreatePayload) => {
     const res = await fetch(`/api/rules/${encodeURIComponent(id)}`, {
       method: "PUT",
-      headers: { "Content-Type": "application/json" },
+      headers: authHeaders({ "Content-Type": "application/json" }),
       body: JSON.stringify({ ...payload, overwrite: true }),
     });
     if (!res.ok) await ruleMutationError(res);
     return res.json() as Promise<Rule>;
   },
   deleteRule: async (id: string) => {
-    const res = await fetch(`/api/rules/${encodeURIComponent(id)}`, { method: "DELETE" });
+    const res = await fetch(`/api/rules/${encodeURIComponent(id)}`, {
+      method: "DELETE",
+      headers: authHeaders(),
+    });
     if (!res.ok) await ruleMutationError(res);
   },
   setRuleEnabled: async (id: string, enabled: boolean) => {
     const res = await fetch(`/api/rules/${encodeURIComponent(id)}/enabled`, {
       method: "PATCH",
-      headers: { "Content-Type": "application/json" },
+      headers: authHeaders({ "Content-Type": "application/json" }),
       body: JSON.stringify({ enabled }),
     });
     if (!res.ok) await ruleMutationError(res);
@@ -192,30 +283,26 @@ export const api = {
   setAlertStatus: async (id: number, status: AlertStatus | string) => {
     const res = await fetch(`/api/alerts/${id}/status`, {
       method: "PATCH",
-      headers: { "Content-Type": "application/json" },
+      headers: authHeaders({ "Content-Type": "application/json" }),
       body: JSON.stringify({ status }),
     });
-    if (!res.ok) throw new Error("status update failed");
-    return res.json() as Promise<Alert>;
+    return handleRes<Alert>(res);
   },
   ackAlert: async (id: number) => {
-    const res = await fetch(`/api/alerts/${id}/ack`, { method: "POST" });
-    if (!res.ok) throw new Error("ack failed");
-    return res.json() as Promise<Alert>;
+    const res = await fetch(`/api/alerts/${id}/ack`, { method: "POST", headers: authHeaders() });
+    return handleRes<Alert>(res);
   },
   addComment: async (id: number, body: string, author = "analyst") => {
     const res = await fetch(`/api/alerts/${id}/comments`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: authHeaders({ "Content-Type": "application/json" }),
       body: JSON.stringify({ body, author }),
     });
-    if (!res.ok) throw new Error("comment failed");
-    return res.json() as Promise<AlertComment>;
+    return handleRes<AlertComment>(res);
   },
   runRules: async () => {
-    const res = await fetch("/api/rules/run", { method: "POST" });
-    if (!res.ok) throw new Error("run rules failed");
-    return res.json() as Promise<Alert[]>;
+    const res = await fetch("/api/rules/run", { method: "POST", headers: authHeaders() });
+    return handleRes<Alert[]>(res);
   },
 };
 

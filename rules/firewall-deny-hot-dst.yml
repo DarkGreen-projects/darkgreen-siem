@@ -1,0 +1,22 @@
+id: firewall-deny-hot-dst
+name: Firewall deny verso IP hot
+title: Deny firewall verso destinazione hot (demo)
+description: >
+  Match deny firewall verso un set di IP pubblici demo considerati "hot"
+  (RFC5737). Utile per hunting di scan/exploit verso target monitorati.
+threat_brief: >
+  Un deny verso un IP in watchlist puo indicare tentativi outbound malevoli
+  (C2) o misconfig. Verifica host interno sorgente, porta/servizio, e volume
+  di deny simili. Arricchisci l IP su VirusTotal dalla card alert.
+type: match
+severity: high
+enabled: true
+window_minutes: 30
+cooldown_minutes: 20
+match:
+  source_type: firewall
+  action: deny
+  dst_ip:
+    - "203.0.113.200"
+    - "198.51.100.200"
+    - "192.0.2.200"

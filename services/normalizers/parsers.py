@@ -103,7 +103,24 @@ def normalize_firewall_syslog(
 def normalize_windows_event(
     payload: dict[str, Any], *, ingest_channel: str = "http", raw: str | None = None
 ) -> NormalizedEvent:
-    event_id = str(payload.get("EventID") or payload.get("event_id") or "")
+    event_id = str(payload.get("EventID") or payload.get("event_id") or "").strip()
+
+    channel_raw = payload.get("Channel") or payload.get("channel")
+    if channel_raw is None and isinstance(payload.get("Log"), dict):
+        channel_raw = payload["Log"].get("Channel")
+    if isinstance(channel_raw, dict):
+        channel_raw = channel_raw.get("Name") or channel_raw.get("name")
+    channel_s = str(channel_raw).strip() if channel_raw else "Security"
+
+    provider_raw = payload.get("ProviderName") or payload.get("provider")
+    if provider_raw is None:
+        provider_raw = payload.get("Provider")
+    if isinstance(provider_raw, dict):
+        provider_raw = provider_raw.get("Name") or provider_raw.get("#text") or provider_raw.get("name")
+    provider_s = (
+        str(provider_raw).strip() if provider_raw else "Microsoft-Windows-Security-Auditing"
+    )
+
     action = (payload.get("Action") or payload.get("action") or "").lower()
     if not action:
         if event_id in {"4625", "4771"}:
@@ -112,9 +129,16 @@ def normalize_windows_event(
             action = "login_success"
         elif event_id in {"4688"}:
             action = "process_create"
+        elif event_id in {"1102"}:
+            action = "audit_cleared"
         else:
             action = "windows_event"
-    severity = "high" if action == "login_failed" else sev(payload.get("Level") or payload.get("severity"), "info")
+    if action == "login_failed":
+        severity = "high"
+    elif action == "audit_cleared":
+        severity = "critical"
+    else:
+        severity = sev(payload.get("Level") or payload.get("severity"), "info")
     message = payload.get("Message") or payload.get("message") or f"Windows Event {event_id}"
     return NormalizedEvent(
         timestamp=parse_ts(payload.get("TimeCreated") or payload.get("timestamp")),
@@ -122,7 +146,7 @@ def normalize_windows_event(
         vendor="Microsoft",
         device=payload.get("Computer") or payload.get("host") or "win-dc01",
         host=payload.get("Computer") or payload.get("host"),
-        user=payload.get("TargetUserName") or payload.get("user"),
+        user=payload.get("TargetUserName") or payload.get("user") or payload.get("SubjectUserName"),
         src_ip=payload.get("IpAddress") or payload.get("src_ip"),
         dst_ip=payload.get("dst_ip"),
         action=action,
@@ -131,10 +155,15 @@ def normalize_windows_event(
         raw=raw or json.dumps(payload, default=str),
         labels={
             "event_id": event_id,
+            "channel": channel_s,
+            "provider": provider_s,
             "logon_type": str(payload.get("LogonType") or ""),
             "process": payload.get("NewProcessName") or payload.get("process"),
         },
         ingest_channel=ingest_channel,
+        event_id=event_id or None,
+        channel=channel_s,
+        provider=provider_s,
     )
 
 

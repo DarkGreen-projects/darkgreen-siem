@@ -11,6 +11,15 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import and_, func, select
 from sqlalchemy.orm import Session
 
+from .auth import (
+    AuthPrincipal,
+    LoginRequest,
+    LoginResponse,
+    MeResponse,
+    check_password,
+    issue_user_token,
+    require_auth,
+)
 from .config import get_settings
 from .db import SessionLocal, get_db, init_db
 from .ingest import ingest_many, ingest_payload, list_sources
@@ -191,6 +200,7 @@ app = FastAPI(
     description="Multi-source demo SIEM — ingest, normalize, search, detect",
     version="0.1.0",
     lifespan=lifespan,
+    dependencies=[Depends(require_auth)],
 )
 
 origins = [o.strip() for o in settings.cors_origins.split(",") if o.strip()]
@@ -206,6 +216,22 @@ app.add_middleware(
 @app.get("/health")
 def health() -> dict[str, str]:
     return {"status": "ok", "service": "darkgreen-siem"}
+
+
+@app.post("/api/auth/login", response_model=LoginResponse)
+def api_login(body: LoginRequest) -> LoginResponse:
+    if not settings.auth_enabled:
+        token, exp = issue_user_token(settings, body.username.strip() or "anonymous")
+        return LoginResponse(token=token, expires_at=exp, username=body.username.strip() or "anonymous")
+    if not check_password(settings, body.username.strip(), body.password):
+        raise HTTPException(status_code=401, detail="Invalid username or password")
+    token, exp = issue_user_token(settings, settings.demo_username)
+    return LoginResponse(token=token, expires_at=exp, username=settings.demo_username)
+
+
+@app.get("/api/auth/me", response_model=MeResponse)
+def api_me(principal: AuthPrincipal = Depends(require_auth)) -> MeResponse:
+    return MeResponse(username=principal.username, kind=principal.kind)
 
 
 @app.post("/api/ingest", response_model=IngestResponse)
@@ -320,6 +346,12 @@ def api_stats(
             select(Event.ingest_channel, func.count()).group_by(Event.ingest_channel)
         ).all()
     }
+    by_alert_status = {
+        str(k): int(v)
+        for k, v in db.execute(select(Alert.status, func.count()).group_by(Alert.status)).all()
+    }
+    for st in ALERT_STATUSES:
+        by_alert_status.setdefault(st, 0)
 
     now = datetime.now(timezone.utc)
     timeline: list[dict[str, Any]] = []
@@ -379,6 +411,7 @@ def api_stats(
         by_source_type=by_source,
         by_severity=by_sev,
         by_channel=by_channel,
+        by_alert_status=by_alert_status,
         timeline=timeline,
         source_health=source_health,
         recent_alerts=[alert_to_out(a, briefs, db=db) for a in recent],

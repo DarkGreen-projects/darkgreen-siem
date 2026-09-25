@@ -17,7 +17,7 @@ from .input_limits import (
 )
 
 RULE_ID_RE = re.compile(r"^[a-z0-9][a-z0-9_-]{1,62}$")
-ALLOWED_GROUP_BY = frozenset({"user", "src_ip", "host", "action", "source_type"})
+ALLOWED_GROUP_BY = frozenset({"user", "src_ip", "host", "action", "source_type", "event_id"})
 ALLOWED_TYPES = frozenset({"match", "threshold"})
 ALLOWED_SEVERITIES = frozenset({"critical", "high", "medium", "low", "info"})
 

@@ -1,0 +1,18 @@
+id: windows-audit-cleared
+name: Windows security audit log cleared
+title: Security log cleared (EventID 1102)
+description: >
+  Match su action audit_cleared (tipicamente EventID 1102, channel Security).
+  Spesso indica tentativo di copertura tracce.
+threat_brief: >
+  La cancellazione del Security log (1102) e un segnale forte di defense evasion.
+  Identifica SubjectUserName/host, correlare con logon amministrativi e tool di
+  remote admin nelle ore precedenti. Conservare copie offline se disponibili.
+type: match
+severity: critical
+enabled: true
+window_minutes: 60
+cooldown_minutes: 60
+match:
+  source_type: windows
+  action: audit_cleared

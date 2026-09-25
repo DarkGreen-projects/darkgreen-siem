@@ -16,11 +16,21 @@ API_URL = os.getenv("API_URL", "http://localhost:8000").rstrip("/")
 SYSLOG_HOST = os.getenv("SYSLOG_HOST", "127.0.0.1")
 SYSLOG_PORT = int(os.getenv("SYSLOG_PORT", "5140"))
 INTERVAL = float(os.getenv("INTERVAL_SEC", "2"))
+SIEM_API_TOKEN = os.getenv("SIEM_API_TOKEN", "").strip()
 
 USERS = ["j.doe", "a.admin", "svc.backup", "r.rossi", "ext.vendor"]
 HOSTS = ["win-dc01.lab.local", "win-ws42.lab.local", "fw-edge-01", "app-api-01"]
 IPS_EXT = ["203.0.113.45", "203.0.113.88", "198.51.100.22", "198.51.100.80"]
 IPS_INT = ["10.0.20.15", "10.0.20.8", "10.0.30.2", "10.0.50.3"]
+HOT_DST = ["203.0.113.200", "198.51.100.200", "192.0.2.200"]
+SPRAY_SRC = "203.0.113.45"
+
+
+def _auth_headers() -> dict[str, str]:
+    headers = {"Content-Type": "application/json"}
+    if SIEM_API_TOKEN:
+        headers["Authorization"] = f"Bearer {SIEM_API_TOKEN}"
+    return headers
 
 
 def post_ingest(payload, source_type: str) -> None:
@@ -34,7 +44,7 @@ def post_ingest(payload, source_type: str) -> None:
     req = urllib.request.Request(
         f"{API_URL}/api/ingest",
         data=body,
-        headers={"Content-Type": "application/json"},
+        headers=_auth_headers(),
         method="POST",
     )
     with urllib.request.urlopen(req, timeout=5) as resp:
@@ -50,10 +60,13 @@ def send_syslog(line: str) -> None:
         sock.close()
 
 
-def gen_firewall() -> str:
-    action = random.choice(["deny", "deny", "accept", "deny"])
+def gen_firewall(*, hot: bool = False) -> str:
+    action = "deny" if hot else random.choice(["deny", "deny", "accept", "deny"])
     src = random.choice(IPS_EXT if action == "deny" else IPS_INT)
-    dst = random.choice(IPS_INT if action == "deny" else IPS_EXT)
+    if hot:
+        dst = random.choice(HOT_DST)
+    else:
+        dst = random.choice(IPS_INT if action == "deny" else IPS_EXT)
     port = random.choice([22, 443, 3389, 8080, 53])
     return (
         f'date={datetime.now(timezone.utc):%Y-%m-%d} time={datetime.now(timezone.utc):%H:%M:%S} '
@@ -63,11 +76,36 @@ def gen_firewall() -> str:
     )
 
 
-def gen_windows() -> dict:
+def gen_windows(*, kind: str = "logon") -> dict:
+    now = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    if kind == "audit_cleared":
+        return {
+            "TimeCreated": now,
+            "EventID": 1102,
+            "Channel": "Security",
+            "ProviderName": "Microsoft-Windows-Eventlog",
+            "Computer": "win-dc01.lab.local",
+            "SubjectUserName": "a.admin",
+            "Message": "The audit log was cleared",
+        }
+    if kind == "spray":
+        return {
+            "TimeCreated": now,
+            "EventID": 4625,
+            "Channel": "Security",
+            "ProviderName": "Microsoft-Windows-Security-Auditing",
+            "Computer": "win-dc01.lab.local",
+            "TargetUserName": random.choice(USERS),
+            "IpAddress": SPRAY_SRC,
+            "LogonType": 3,
+            "Message": "An account failed to log on",
+        }
     failed = random.random() < 0.7
     return {
-        "TimeCreated": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+        "TimeCreated": now,
         "EventID": 4625 if failed else 4624,
+        "Channel": "Security",
+        "ProviderName": "Microsoft-Windows-Security-Auditing",
         "Computer": random.choice(HOSTS),
         "TargetUserName": random.choice(USERS),
         "IpAddress": random.choice(IPS_EXT if failed else IPS_INT),
@@ -123,7 +161,10 @@ def main() -> None:
     wait_for_api()
     generators = [
         ("firewall", "syslog"),
+        ("firewall_hot", "http"),
         ("windows", "http"),
+        ("windows_spray", "http"),
+        ("windows_audit", "http"),
         ("cloud_auth", "http"),
         ("siem_export", "http"),
         ("firewall", "http"),
@@ -135,6 +176,16 @@ def main() -> None:
                 send_syslog(gen_firewall())
             elif kind == "firewall":
                 post_ingest(gen_firewall(), "firewall")
+            elif kind == "firewall_hot":
+                post_ingest(gen_firewall(hot=True), "firewall")
+            elif kind == "windows_spray":
+                post_ingest(gen_windows(kind="spray"), "windows")
+            elif kind == "windows_audit":
+                # rarer: only sometimes emit 1102
+                if random.random() < 0.35:
+                    post_ingest(gen_windows(kind="audit_cleared"), "windows")
+                else:
+                    post_ingest(gen_windows(), "windows")
             elif kind == "windows":
                 post_ingest(gen_windows(), "windows")
             elif kind == "cloud_auth":

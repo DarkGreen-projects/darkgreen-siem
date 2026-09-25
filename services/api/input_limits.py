@@ -30,6 +30,9 @@ ALLOWED_MATCH_KEYS = frozenset(
         "device",
         "ingest_channel",
         "message",
+        "event_id",
+        "channel",
+        "provider",
     }
 )
 

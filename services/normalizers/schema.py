@@ -38,6 +38,9 @@ class NormalizedEvent(BaseModel):
     raw: str = ""
     labels: dict[str, Any] = Field(default_factory=dict)
     ingest_channel: str = "http"
+    event_id: str | None = None
+    channel: str | None = None
+    provider: str | None = None
 
     @field_validator("src_ip", "dst_ip", mode="before")
     @classmethod
@@ -60,4 +63,7 @@ class NormalizedEvent(BaseModel):
             "raw": (self.raw or "")[:65536],
             "labels": self.labels,
             "ingest_channel": self.ingest_channel,
+            "event_id": (self.event_id or None) and str(self.event_id)[:64],
+            "channel": (self.channel or None) and str(self.channel)[:128],
+            "provider": (self.provider or None) and str(self.provider)[:128],
         }

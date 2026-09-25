@@ -2,6 +2,8 @@
   {
     "TimeCreated": "2026-09-09T08:10:00Z",
     "EventID": 4625,
+    "Channel": "Security",
+    "ProviderName": "Microsoft-Windows-Security-Auditing",
     "Computer": "win-dc01.lab.local",
     "TargetUserName": "j.doe",
     "IpAddress": "203.0.113.45",
@@ -11,8 +13,10 @@
   {
     "TimeCreated": "2026-09-09T08:10:12Z",
     "EventID": 4625,
+    "Channel": "Security",
+    "ProviderName": "Microsoft-Windows-Security-Auditing",
     "Computer": "win-dc01.lab.local",
-    "TargetUserName": "j.doe",
+    "TargetUserName": "a.admin",
     "IpAddress": "203.0.113.45",
     "LogonType": 3,
     "Message": "An account failed to log on"
@@ -20,8 +24,10 @@
   {
     "TimeCreated": "2026-09-09T08:10:25Z",
     "EventID": 4625,
+    "Channel": "Security",
+    "ProviderName": "Microsoft-Windows-Security-Auditing",
     "Computer": "win-dc01.lab.local",
-    "TargetUserName": "j.doe",
+    "TargetUserName": "r.rossi",
     "IpAddress": "203.0.113.45",
     "LogonType": 3,
     "Message": "An account failed to log on"
@@ -29,8 +35,10 @@
   {
     "TimeCreated": "2026-09-09T08:10:40Z",
     "EventID": 4625,
+    "Channel": "Security",
+    "ProviderName": "Microsoft-Windows-Security-Auditing",
     "Computer": "win-dc01.lab.local",
-    "TargetUserName": "j.doe",
+    "TargetUserName": "svc.backup",
     "IpAddress": "203.0.113.45",
     "LogonType": 3,
     "Message": "An account failed to log on"
@@ -38,8 +46,10 @@
   {
     "TimeCreated": "2026-09-09T08:10:55Z",
     "EventID": 4625,
+    "Channel": "Security",
+    "ProviderName": "Microsoft-Windows-Security-Auditing",
     "Computer": "win-dc01.lab.local",
-    "TargetUserName": "j.doe",
+    "TargetUserName": "ext.vendor",
     "IpAddress": "203.0.113.45",
     "LogonType": 3,
     "Message": "An account failed to log on"
@@ -47,6 +57,8 @@
   {
     "TimeCreated": "2026-09-09T08:11:10Z",
     "EventID": 4625,
+    "Channel": "Security",
+    "ProviderName": "Microsoft-Windows-Security-Auditing",
     "Computer": "win-dc01.lab.local",
     "TargetUserName": "j.doe",
     "IpAddress": "203.0.113.45",
@@ -56,6 +68,8 @@
   {
     "TimeCreated": "2026-09-09T08:12:00Z",
     "EventID": 4624,
+    "Channel": "Security",
+    "ProviderName": "Microsoft-Windows-Security-Auditing",
     "Computer": "win-dc01.lab.local",
     "TargetUserName": "a.admin",
     "IpAddress": "10.0.20.8",
@@ -65,9 +79,20 @@
   {
     "TimeCreated": "2026-09-09T08:15:00Z",
     "EventID": 4688,
+    "Channel": "Security",
+    "ProviderName": "Microsoft-Windows-Security-Auditing",
     "Computer": "win-ws42.lab.local",
     "TargetUserName": "svc.backup",
     "NewProcessName": "C:\\\\Windows\\\\Temp\\\\payload.exe",
     "Message": "A new process has been created"
+  },
+  {
+    "TimeCreated": "2026-09-09T08:20:00Z",
+    "EventID": 1102,
+    "Channel": "Security",
+    "ProviderName": "Microsoft-Windows-Eventlog",
+    "Computer": "win-dc01.lab.local",
+    "SubjectUserName": "a.admin",
+    "Message": "The audit log was cleared"
   }
 ]

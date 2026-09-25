@@ -30,6 +30,9 @@ class Event(Base):
     raw: Mapped[str] = mapped_column(Text, default="")
     labels: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
     ingest_channel: Mapped[str] = mapped_column(String(32), default="http", index=True)
+    event_id: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    channel: Mapped[str | None] = mapped_column(String(128), nullable=True, index=True)
+    provider: Mapped[str | None] = mapped_column(String(128), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
