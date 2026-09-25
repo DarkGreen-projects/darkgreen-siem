@@ -34,6 +34,7 @@ export default function Dashboard() {
   const [error, setError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<AlertStatus | "all">("all");
   const [mitreFilter, setMitreFilter] = useState("");
+  const [slaFilter, setSlaFilter] = useState("");
   const [filteredAlerts, setFilteredAlerts] = useState<Alert[] | null>(null);
   const [exporting, setExporting] = useState(false);
 
@@ -59,7 +60,8 @@ export default function Dashboard() {
 
   useEffect(() => {
     const mitre = mitreFilter.trim();
-    if (statusFilter === "all" && !mitre) {
+    const sla = slaFilter.trim();
+    if (statusFilter === "all" && !mitre && !sla) {
       setFilteredAlerts(null);
       return;
     }
@@ -69,6 +71,7 @@ export default function Dashboard() {
         .alerts({
           status: statusFilter === "all" ? undefined : statusFilter,
           mitre: mitre || undefined,
+          sla: sla || undefined,
         })
         .then((list) => {
           if (alive) setFilteredAlerts(list);
@@ -82,7 +85,7 @@ export default function Dashboard() {
       alive = false;
       clearInterval(id);
     };
-  }, [statusFilter, mitreFilter]);
+  }, [statusFilter, mitreFilter, slaFilter]);
 
   const sourcesInChart = useMemo(() => {
     if (!stats) return SOURCE_ORDER;
@@ -104,7 +107,7 @@ export default function Dashboard() {
   const byStatus = stats.by_alert_status || {};
   const openCount = byStatus.open ?? stats.open_alerts;
   const alertsShown =
-    statusFilter === "all" && !mitreFilter.trim()
+    statusFilter === "all" && !mitreFilter.trim() && !slaFilter.trim()
       ? stats.recent_alerts
       : filteredAlerts ?? [];
 
@@ -186,6 +189,20 @@ export default function Dashboard() {
               placeholder="T1059"
               style={{ width: "7rem", marginLeft: "0.25rem" }}
             />
+          </label>
+          <label className="muted" style={{ fontSize: "0.85rem", marginLeft: "0.5rem" }}>
+            SLA{" "}
+            <select
+              value={slaFilter}
+              onChange={(e) => setSlaFilter(e.target.value)}
+              style={{ marginLeft: "0.25rem" }}
+            >
+              <option value="">tutti</option>
+              <option value="breached">breached</option>
+              <option value="at_risk">at_risk</option>
+              <option value="ok">ok</option>
+              <option value="met">met</option>
+            </select>
           </label>
         </div>
       </div>

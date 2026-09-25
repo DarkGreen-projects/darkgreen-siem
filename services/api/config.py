@@ -36,6 +36,8 @@ class Settings(BaseSettings):
     notify_webhook_url: str = ""
     notify_format: str = "slack"
     notify_min_severity: str = "high"
+    sla_ack_minutes: str = ""  # JSON object or empty = defaults
+    sla_close_minutes: str = ""
     default_tenant_id: str = "lab"
     default_tenant_name: str = "Lab"
 
@@ -109,6 +111,10 @@ def get_settings() -> Settings:
         data["notify_format"] = os.environ["NOTIFY_FORMAT"]
     if os.getenv("NOTIFY_MIN_SEVERITY"):
         data["notify_min_severity"] = os.environ["NOTIFY_MIN_SEVERITY"]
+    if os.getenv("SLA_ACK_MINUTES"):
+        data["sla_ack_minutes"] = os.environ["SLA_ACK_MINUTES"]
+    if os.getenv("SLA_CLOSE_MINUTES"):
+        data["sla_close_minutes"] = os.environ["SLA_CLOSE_MINUTES"]
     if os.getenv("DEFAULT_TENANT_ID"):
         data["default_tenant_id"] = os.environ["DEFAULT_TENANT_ID"]
     if os.getenv("DEFAULT_TENANT_NAME"):

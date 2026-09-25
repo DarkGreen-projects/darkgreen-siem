@@ -80,6 +80,7 @@ from .lab_settings import (
     load_lab_settings_from_db,
     update_lab_state,
 )
+from .sla import alert_matches_sla_filter, compute_alert_sla
 from .maintenance import evaluate_silence_alerts, purge_all_tenants, purge_old_events
 from .enrich_providers import enrich_multi
 from .search import search_events
@@ -185,6 +186,12 @@ def alert_to_out(
     audit_rows: list[AlertAudit] = []
     if db is not None:
         audit_rows = _load_audit(db, alert.id)
+    lab = get_lab_state()
+    sla = compute_alert_sla(
+        alert,
+        ack_map=lab.sla_ack_minutes,
+        close_map=lab.sla_close_minutes,
+    )
     return AlertOut(
         id=alert.id,
         rule_id=alert.rule_id,
@@ -200,6 +207,8 @@ def alert_to_out(
         mitre=getattr(alert, "mitre", None) or evidence.get("mitre"),
         created_at=alert.created_at,
         acked_at=alert.acked_at,
+        closed_at=getattr(alert, "closed_at", None),
+        **sla,
     )
 
 
@@ -228,8 +237,11 @@ def apply_alert_status(
             )
         )
     alert.status = status
-    if status == "acked":
-        alert.acked_at = datetime.now(timezone.utc)
+    now = datetime.now(timezone.utc)
+    if from_status == "open" and status != "open" and alert.acked_at is None:
+        alert.acked_at = now
+    if status == "closed" and getattr(alert, "closed_at", None) is None:
+        alert.closed_at = now
 
 
 def _handle_syslog(message: str, host: str) -> None:
@@ -783,6 +795,8 @@ def api_patch_setup(
             notify_webhook_url=body.notify_webhook_url,
             notify_format=body.notify_format,
             notify_min_severity=body.notify_min_severity,
+            sla_ack_minutes=body.sla_ack_minutes,
+            sla_close_minutes=body.sla_close_minutes,
             db=db,
         )
     except ValueError as exc:
@@ -808,6 +822,7 @@ def api_purge(
 def api_alerts(
     status: str | None = None,
     mitre: str | None = Query(None, max_length=64),
+    sla: str | None = Query(None, max_length=16),
     limit: int = Query(50, ge=1, le=200),
     db: Session = Depends(get_db),
     principal: AuthPrincipal = Depends(require_perm("search")),
@@ -817,18 +832,38 @@ def api_alerts(
             status_code=400,
             detail=f"status must be one of: {', '.join(sorted(ALERT_STATUSES))}",
         )
+    sla_wanted = (sla or "").strip().lower() or None
+    if sla_wanted and sla_wanted not in {"breached", "at_risk", "met", "ok", "na"}:
+        raise HTTPException(
+            status_code=400,
+            detail="sla must be one of: breached, at_risk, met, ok, na",
+        )
     briefs = _rule_briefs()
+    fetch_limit = min(200, limit * 4) if sla_wanted else limit
     stmt = (
         select(Alert)
         .where(Alert.tenant_id == principal.tenant_id)
         .order_by(Alert.created_at.desc())
-        .limit(limit)
+        .limit(fetch_limit)
     )
     if status:
         stmt = stmt.where(Alert.status == status)
     if mitre and mitre.strip():
         stmt = stmt.where(Alert.mitre.ilike(f"%{mitre.strip()}%"))
-    return [alert_to_out(a, briefs, db=db) for a in db.scalars(stmt).all()]
+    out = [alert_to_out(a, briefs, db=db) for a in db.scalars(stmt).all()]
+    if sla_wanted:
+        out = [
+            a
+            for a in out
+            if alert_matches_sla_filter(
+                {
+                    "sla_ack_status": a.sla_ack_status,
+                    "sla_close_status": a.sla_close_status,
+                },
+                sla_wanted,
+            )
+        ][:limit]
+    return out
 
 
 @app.get("/api/alerts/export.csv")

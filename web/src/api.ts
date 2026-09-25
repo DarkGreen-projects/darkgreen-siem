@@ -49,6 +49,17 @@ export type Alert = {
   audit?: AlertAuditEntry[];
   created_at: string;
   acked_at: string | null;
+  closed_at?: string | null;
+  sla_ack_status?: string | null;
+  sla_ack_target_minutes?: number | null;
+  sla_ack_due_at?: string | null;
+  sla_ack_elapsed_minutes?: number | null;
+  sla_ack_remaining_minutes?: number | null;
+  sla_close_status?: string | null;
+  sla_close_target_minutes?: number | null;
+  sla_close_due_at?: string | null;
+  sla_close_elapsed_minutes?: number | null;
+  sla_close_remaining_minutes?: number | null;
 };
 
 export type AlertAuditEntry = {
@@ -168,6 +179,8 @@ export type LabSetup = {
   notify_webhook_url_masked?: string | null;
   notify_format?: string;
   notify_min_severity?: string;
+  sla_ack_minutes?: Record<string, number>;
+  sla_close_minutes?: Record<string, number>;
 };
 
 export type DryRunHit = {
@@ -378,10 +391,11 @@ export const api = {
     if (!res.ok) await ruleMutationError(res);
     return res.json() as Promise<Rule>;
   },
-  alerts: (opts?: { status?: string; mitre?: string }) => {
+  alerts: (opts?: { status?: string; mitre?: string; sla?: string }) => {
     const sp = new URLSearchParams();
     if (opts?.status) sp.set("status", opts.status);
     if (opts?.mitre) sp.set("mitre", opts.mitre);
+    if (opts?.sla) sp.set("sla", opts.sla);
     const q = sp.toString();
     return getJson<Alert[]>(q ? `/api/alerts?${q}` : "/api/alerts");
   },
@@ -446,6 +460,8 @@ export const api = {
     notify_webhook_url?: string;
     notify_format?: string;
     notify_min_severity?: string;
+    sla_ack_minutes?: Record<string, number>;
+    sla_close_minutes?: Record<string, number>;
   }) => {
     const res = await fetch("/api/setup", {
       method: "PATCH",

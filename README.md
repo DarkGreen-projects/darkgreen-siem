@@ -21,7 +21,7 @@ Parte del portfolio [DarkGreen Projects](https://github.com/DarkGreen-projects).
 | **TLS / HA** | Overlay Compose TLS + 2 API dietro nginx (vedi README) |
 | **Ricerca** | Query `field:value` + free-text; **ricerche predefinite** (login_failed, deny, audit_cleared, malware…) |
 | **Dashboard** | EPS, timeline per sorgente, health strip, filtri stato/MITRE, **export CSV** |
-| **Setup lab** | Retention, silence, purge, **enrichment keys**, **webhook Slack/Teams** |
+| **Setup lab** | Retention, silence, purge, enrichment keys, webhook Slack/Teams, **SLA ack/close per severity** |
 | **Detection** | YAML match / threshold / correlation; CRUD UI; **dry-run** bench; match `labels.*` |
 | **Alert workflow** | Stati + commenti + audit; **MITRE** su regole/alert; **dedup/merge** rule+entity in cooldown |
 | **Sorgenti** | Canali live + onboarding agent; alert ops se silenziose; [guida collectors](docs/collectors-windows-syslog.md) |
@@ -119,6 +119,20 @@ Webhook HTTPS su alert **aperti** con severity >= soglia (default `high`). Solo 
 | `NOTIFY_MIN_SEVERITY` | `high` | Soglia minima |
 
 Configurabile anche da **Setup → Notifiche**.
+
+### SLA alert (ack + close)
+
+Minuti massimi per severity, configurabili in **Setup → SLA alert** (o env JSON):
+
+| Env | Esempio |
+|-----|---------|
+| `SLA_ACK_MINUTES` | `{"critical":15,"high":30,"medium":240,"low":1440}` |
+| `SLA_CLOSE_MINUTES` | `{"critical":120,"high":480,"medium":1440,"low":10080}` |
+
+- **Ack**: da creazione fino a uscita da `open` (`acked` / `in_progress`)
+- **Close**: da creazione fino a `closed`
+- Stati computed: `ok`, `at_risk` (>80%), `breached`, `met`, `na` (se minuti = 0)
+- Filtro UI/API: `GET /api/alerts?sla=breached`
 
 ### Cynet / siem_export, dry-run, MITRE, dedup
 

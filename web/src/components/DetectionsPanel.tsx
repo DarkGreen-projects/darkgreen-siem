@@ -42,14 +42,20 @@ export default function DetectionsPanel({ readOnly = false }: { readOnly?: boole
   const [editor, setEditor] = useState<EditorState>(null);
   const [rowBusy, setRowBusy] = useState<string | null>(null);
   const [mitreFilter, setMitreFilter] = useState("");
+  const [slaFilter, setSlaFilter] = useState("");
   const [dryRunText, setDryRunText] = useState(DRY_RUN_PLACEHOLDER);
   const [dryHits, setDryHits] = useState<DryRunHit[] | null>(null);
   const [dryNorm, setDryNorm] = useState(0);
   const [dryBusy, setDryBusy] = useState(false);
 
   const refresh = async () => {
-    const opts = mitreFilter.trim() ? { mitre: mitreFilter.trim() } : undefined;
-    const [r, a] = await Promise.all([api.rules(), api.alerts(opts)]);
+    const opts: { mitre?: string; sla?: string } = {};
+    if (mitreFilter.trim()) opts.mitre = mitreFilter.trim();
+    if (slaFilter.trim()) opts.sla = slaFilter.trim();
+    const [r, a] = await Promise.all([
+      api.rules(),
+      api.alerts(Object.keys(opts).length ? opts : undefined),
+    ]);
     setRules(r);
     setAlerts(a);
   };
@@ -64,7 +70,7 @@ export default function DetectionsPanel({ readOnly = false }: { readOnly?: boole
       alive = false;
       clearInterval(id);
     };
-  }, [mitreFilter]);
+  }, [mitreFilter, slaFilter]);
 
   const runNow = async () => {
     setBusy(true);
@@ -271,6 +277,20 @@ export default function DetectionsPanel({ readOnly = false }: { readOnly?: boole
               placeholder="T1059"
               style={{ width: "7rem", marginLeft: "0.25rem" }}
             />
+          </label>
+          <label className="muted" style={{ fontSize: "0.85rem", marginLeft: "0.5rem" }}>
+            SLA{" "}
+            <select
+              value={slaFilter}
+              onChange={(e) => setSlaFilter(e.target.value)}
+              style={{ marginLeft: "0.25rem" }}
+            >
+              <option value="">tutti</option>
+              <option value="breached">breached</option>
+              <option value="at_risk">at_risk</option>
+              <option value="ok">ok</option>
+              <option value="met">met</option>
+            </select>
           </label>
         </div>
         <div className="list-block">

@@ -75,6 +75,7 @@ Regole YAML sotto `rules/`:
 - **Dedup/merge**: stessa rule + entity key entro `cooldown_minutes` aggiorna `evidence.occurrences` invece di creare un nuovo alert
 - **Dry-run**: `POST /api/rules/dry-run` valuta in memoria senza scrivere alert
 - **Notify**: webhook Slack/Teams su create di alert critical/high (Setup / env)
+- **SLA**: minuti ack/close per severity (`lab_settings` + Setup); badge e filtro `?sla=` su alert; `acked_at` al leave-open, `closed_at` a closed
 
 ## Collectors
 

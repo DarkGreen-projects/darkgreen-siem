@@ -1,6 +1,21 @@
 import { useEffect, useState } from "react";
 import { api, type LabSetup } from "../api";
 
+const SLA_SEVS = ["critical", "high", "medium", "low"] as const;
+
+const DEFAULT_ACK: Record<string, number> = {
+  critical: 15,
+  high: 30,
+  medium: 240,
+  low: 1440,
+};
+const DEFAULT_CLOSE: Record<string, number> = {
+  critical: 120,
+  high: 480,
+  medium: 1440,
+  low: 10080,
+};
+
 export default function SetupPanel() {
   const [setup, setSetup] = useState<LabSetup | null>(null);
   const [retention, setRetention] = useState(7);
@@ -13,6 +28,8 @@ export default function SetupPanel() {
   const [notifyUrl, setNotifyUrl] = useState("");
   const [notifyFormat, setNotifyFormat] = useState("slack");
   const [notifyMinSev, setNotifyMinSev] = useState("high");
+  const [slaAck, setSlaAck] = useState<Record<string, number>>({ ...DEFAULT_ACK });
+  const [slaClose, setSlaClose] = useState<Record<string, number>>({ ...DEFAULT_CLOSE });
   const [error, setError] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -32,6 +49,8 @@ export default function SetupPanel() {
         setNotifyUrl("");
         setNotifyFormat(s.notify_format || "slack");
         setNotifyMinSev(s.notify_min_severity || "high");
+        setSlaAck({ ...DEFAULT_ACK, ...(s.sla_ack_minutes || {}) });
+        setSlaClose({ ...DEFAULT_CLOSE, ...(s.sla_close_minutes || {}) });
         setError(null);
       })
       .catch((e: Error) => setError(e.message));
@@ -51,6 +70,8 @@ export default function SetupPanel() {
         silence_alerts_enabled: silenceAlerts,
         notify_format: notifyFormat,
         notify_min_severity: notifyMinSev,
+        sla_ack_minutes: slaAck,
+        sla_close_minutes: slaClose,
       };
       if (vtKey.trim()) payload.vt_api_key = vtKey.trim();
       if (abuseKey.trim()) payload.abuseipdb_api_key = abuseKey.trim();
@@ -62,6 +83,8 @@ export default function SetupPanel() {
       setAbuseKey("");
       setOtxKey("");
       setNotifyUrl("");
+      setSlaAck({ ...DEFAULT_ACK, ...(s.sla_ack_minutes || {}) });
+      setSlaClose({ ...DEFAULT_CLOSE, ...(s.sla_close_minutes || {}) });
       setMsg("Impostazioni lab salvate (sessione API).");
     } catch (e) {
       setError((e as Error).message);
@@ -284,6 +307,42 @@ export default function SetupPanel() {
               <option value="low">low</option>
             </select>
           </label>
+        </div>
+
+        <h3 className="muted" style={{ marginTop: "1.25rem" }}>
+          SLA alert (minuti)
+        </h3>
+        <p className="muted" style={{ fontSize: "0.85rem" }}>
+          Tempo massimo ad ack (uscita da open) e a closed, per severity.{" "}
+          <span className="mono">0</span> = disabilitata. At risk oltre l&apos;80% del target.
+        </p>
+        <div className="sla-grid">
+          <div className="sla-grid-head muted mono">severity</div>
+          <div className="sla-grid-head muted mono">ack</div>
+          <div className="sla-grid-head muted mono">close</div>
+          {SLA_SEVS.map((sev) => (
+            <div key={sev} className="sla-grid-row">
+              <span className={`badge ${sev}`}>{sev}</span>
+              <input
+                type="number"
+                min={0}
+                max={40320}
+                value={slaAck[sev] ?? 0}
+                onChange={(e) =>
+                  setSlaAck((prev) => ({ ...prev, [sev]: Number(e.target.value) }))
+                }
+              />
+              <input
+                type="number"
+                min={0}
+                max={40320}
+                value={slaClose[sev] ?? 0}
+                onChange={(e) =>
+                  setSlaClose((prev) => ({ ...prev, [sev]: Number(e.target.value) }))
+                }
+              />
+            </div>
+          ))}
         </div>
 
         <div className="row" style={{ gap: "0.5rem", marginTop: "1rem" }}>

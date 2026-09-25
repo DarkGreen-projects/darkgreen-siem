@@ -93,6 +93,7 @@ class Alert(Base):
         DateTime(timezone=True), server_default=func.now(), index=True
     )
     acked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    closed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
 class AlertComment(Base):

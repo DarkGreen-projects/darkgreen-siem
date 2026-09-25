@@ -170,6 +170,17 @@ class AlertOut(BaseModel):
     audit: list["AuditOut"] = Field(default_factory=list)
     created_at: datetime
     acked_at: datetime | None = None
+    closed_at: datetime | None = None
+    sla_ack_status: str | None = None
+    sla_ack_target_minutes: int | None = None
+    sla_ack_due_at: datetime | None = None
+    sla_ack_elapsed_minutes: int | None = None
+    sla_ack_remaining_minutes: int | None = None
+    sla_close_status: str | None = None
+    sla_close_target_minutes: int | None = None
+    sla_close_due_at: datetime | None = None
+    sla_close_elapsed_minutes: int | None = None
+    sla_close_remaining_minutes: int | None = None
 
     class Config:
         from_attributes = True
@@ -322,6 +333,8 @@ class SetupOut(BaseModel):
     notify_webhook_url_masked: str | None = None
     notify_format: str = "slack"
     notify_min_severity: str = "high"
+    sla_ack_minutes: dict[str, int] = Field(default_factory=dict)
+    sla_close_minutes: dict[str, int] = Field(default_factory=dict)
 
 
 class SetupUpdate(BaseModel):
@@ -335,6 +348,8 @@ class SetupUpdate(BaseModel):
     notify_webhook_url: str | None = Field(default=None, max_length=2048)
     notify_format: str | None = Field(default=None, max_length=16)
     notify_min_severity: str | None = Field(default=None, max_length=16)
+    sla_ack_minutes: dict[str, int] | None = None
+    sla_close_minutes: dict[str, int] | None = None
 
 
 class ProviderEnrichOut(BaseModel):

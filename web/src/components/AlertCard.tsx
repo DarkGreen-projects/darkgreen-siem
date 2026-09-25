@@ -154,6 +154,26 @@ export default function AlertCard({
         <span className={`badge ${alert.severity}`}>{alert.severity}</span>
         <span className={`badge status-${alert.status}`}>{alert.status}</span>
         {alert.mitre && <span className="badge mitre">{alert.mitre}</span>}
+        {alert.sla_ack_status && alert.sla_ack_status !== "na" && (
+          <span className={`badge sla-${alert.sla_ack_status}`} title="SLA ack">
+            ack {alert.sla_ack_status}
+            {alert.sla_ack_status === "ok" || alert.sla_ack_status === "at_risk"
+              ? alert.sla_ack_remaining_minutes != null
+                ? ` ${alert.sla_ack_remaining_minutes}m`
+                : ""
+              : ""}
+          </span>
+        )}
+        {alert.sla_close_status && alert.sla_close_status !== "na" && (
+          <span className={`badge sla-${alert.sla_close_status}`} title="SLA close">
+            close {alert.sla_close_status}
+            {alert.sla_close_status === "ok" || alert.sla_close_status === "at_risk"
+              ? alert.sla_close_remaining_minutes != null
+                ? ` ${alert.sla_close_remaining_minutes}m`
+                : ""
+              : ""}
+          </span>
+        )}
         {typeof alert.evidence?.occurrences === "number" &&
           (alert.evidence.occurrences as number) > 1 && (
             <span className="badge">×{String(alert.evidence.occurrences)}</span>

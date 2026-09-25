@@ -2,13 +2,21 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+import json
+from dataclasses import dataclass, field
 from datetime import datetime
 from threading import Lock
 
 from sqlalchemy.orm import Session
 
 from .config import Settings, get_settings
+from .sla import (
+    DEFAULT_SLA_ACK_MINUTES,
+    DEFAULT_SLA_CLOSE_MINUTES,
+    default_sla_ack,
+    default_sla_close,
+    normalize_sla_map,
+)
 
 CLEAR_TOKEN = "CLEAR"
 
@@ -47,6 +55,8 @@ class LabState:
     notify_webhook_url: str = ""
     notify_format: str = "slack"
     notify_min_severity: str = "high"
+    sla_ack_minutes: dict[str, int] = field(default_factory=default_sla_ack)
+    sla_close_minutes: dict[str, int] = field(default_factory=default_sla_close)
     _vt_cleared: bool = False
     _abuse_cleared: bool = False
     _otx_cleared: bool = False
@@ -58,6 +68,18 @@ _state: LabState | None = None
 
 
 def _from_settings(s: Settings) -> LabState:
+    ack = default_sla_ack()
+    close = default_sla_close()
+    try:
+        if getattr(s, "sla_ack_minutes", None):
+            ack = normalize_sla_map(s.sla_ack_minutes, defaults=DEFAULT_SLA_ACK_MINUTES)
+    except ValueError:
+        pass
+    try:
+        if getattr(s, "sla_close_minutes", None):
+            close = normalize_sla_map(s.sla_close_minutes, defaults=DEFAULT_SLA_CLOSE_MINUTES)
+    except ValueError:
+        pass
     return LabState(
         retention_days=max(0, int(s.retention_days)),
         health_stale_minutes=max(1, int(s.health_stale_minutes)),
@@ -72,6 +94,8 @@ def _from_settings(s: Settings) -> LabState:
         notify_min_severity=(getattr(s, "notify_min_severity", "high") or "high")
         .strip()
         .lower(),
+        sla_ack_minutes=ack,
+        sla_close_minutes=close,
     )
 
 
@@ -135,6 +159,20 @@ def load_lab_settings_from_db(db: Session) -> LabState:
             state.notify_format = rows["notify_format"].strip().lower()
         if "notify_min_severity" in rows and rows["notify_min_severity"]:
             state.notify_min_severity = rows["notify_min_severity"].strip().lower()
+        if "sla_ack_minutes" in rows and rows["sla_ack_minutes"]:
+            try:
+                state.sla_ack_minutes = normalize_sla_map(
+                    rows["sla_ack_minutes"], defaults=DEFAULT_SLA_ACK_MINUTES
+                )
+            except ValueError:
+                pass
+        if "sla_close_minutes" in rows and rows["sla_close_minutes"]:
+            try:
+                state.sla_close_minutes = normalize_sla_map(
+                    rows["sla_close_minutes"], defaults=DEFAULT_SLA_CLOSE_MINUTES
+                )
+            except ValueError:
+                pass
         return state
 
 
@@ -163,6 +201,10 @@ def persist_lab_state(db: Session, state: LabState | None = None) -> None:
         _persist_key(db, "notify_webhook_url", s.notify_webhook_url or "")
         _persist_key(db, "notify_format", s.notify_format or "slack")
         _persist_key(db, "notify_min_severity", s.notify_min_severity or "high")
+        _persist_key(db, "sla_ack_minutes", json.dumps(s.sla_ack_minutes or default_sla_ack()))
+        _persist_key(
+            db, "sla_close_minutes", json.dumps(s.sla_close_minutes or default_sla_close())
+        )
         db.commit()
 
 
@@ -191,6 +233,8 @@ def update_lab_state(
     notify_webhook_url: str | None = None,
     notify_format: str | None = None,
     notify_min_severity: str | None = None,
+    sla_ack_minutes: dict[str, int] | None = None,
+    sla_close_minutes: dict[str, int] | None = None,
     db: Session | None = None,
 ) -> LabState:
     state = get_lab_state()
@@ -240,6 +284,15 @@ def update_lab_state(
             if sev not in {"critical", "high", "medium", "low", "info"}:
                 raise ValueError("notify_min_severity invalid")
             state.notify_min_severity = sev
+        if sla_ack_minutes is not None:
+            state.sla_ack_minutes = normalize_sla_map(
+                sla_ack_minutes, defaults=state.sla_ack_minutes or DEFAULT_SLA_ACK_MINUTES
+            )
+        if sla_close_minutes is not None:
+            state.sla_close_minutes = normalize_sla_map(
+                sla_close_minutes,
+                defaults=state.sla_close_minutes or DEFAULT_SLA_CLOSE_MINUTES,
+            )
     if db is not None:
         persist_lab_state(db, state)
     return state
@@ -265,4 +318,6 @@ def enrichment_keys_public(state: LabState | None = None) -> dict:
         "notify_webhook_url_masked": mask_secret(s.notify_webhook_url),
         "notify_format": s.notify_format or "slack",
         "notify_min_severity": s.notify_min_severity or "high",
+        "sla_ack_minutes": dict(s.sla_ack_minutes or default_sla_ack()),
+        "sla_close_minutes": dict(s.sla_close_minutes or default_sla_close()),
     }

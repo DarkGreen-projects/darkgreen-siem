@@ -21,6 +21,7 @@ _ALTERS = (
     "ALTER TABLE alert_audits ADD COLUMN IF NOT EXISTS tenant_id VARCHAR(64) DEFAULT 'lab'",
     "ALTER TABLE ioc_verdicts ADD COLUMN IF NOT EXISTS tenant_id VARCHAR(64) DEFAULT 'lab'",
     "ALTER TABLE alerts ADD COLUMN IF NOT EXISTS mitre VARCHAR(256)",
+    "ALTER TABLE alerts ADD COLUMN IF NOT EXISTS closed_at TIMESTAMPTZ",
     "CREATE INDEX IF NOT EXISTS ix_events_tenant_ts ON events (tenant_id, timestamp)",
 )
 

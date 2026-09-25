@@ -1080,6 +1080,44 @@ pre.raw {
   font-family: var(--mono, ui-monospace, monospace);
   letter-spacing: 0.02em;
 }
+.badge.sla-ok { color: var(--ok); border-color: var(--ok); }
+.badge.sla-at_risk { color: var(--warn); border-color: var(--warn); }
+.badge.sla-breached { color: var(--danger); border-color: var(--danger); }
+.badge.sla-met { color: var(--ok); border-color: var(--border); }
+.badge.sla-na { color: var(--text-muted); border-color: var(--border); }
+.sla-grid {
+  display: grid;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+  max-width: 28rem;
+}
+.sla-grid-head {
+  display: none;
+}
+.sla-grid-row {
+  display: grid;
+  grid-template-columns: 6rem 1fr 1fr;
+  gap: 0.5rem;
+  align-items: center;
+}
+.sla-grid-row input {
+  width: 100%;
+}
+@media (min-width: 640px) {
+  .sla-grid {
+    grid-template-columns: 6rem 1fr 1fr;
+  }
+  .sla-grid-head {
+    display: block;
+    font-size: 0.75rem;
+  }
+  .sla-grid-row {
+    display: contents;
+  }
+  .sla-grid-row > * {
+    margin-bottom: 0.35rem;
+  }
+}
 
 .audit-list {
   margin-bottom: 0.75rem;
