@@ -38,9 +38,12 @@ def build_search_query(
     since_minutes: int | None = None,
     limit: int = 100,
     offset: int = 0,
+    tenant_id: str | None = None,
 ) -> Select:
     stmt = select(Event)
     clauses = []
+    if tenant_id:
+        clauses.append(Event.tenant_id == tenant_id)
 
     field_filters, free_terms = parse_query(q)
     for field, value in field_filters:
@@ -88,6 +91,7 @@ def search_events(
     since_minutes: int | None = None,
     limit: int = 100,
     offset: int = 0,
+    tenant_id: str | None = None,
 ) -> tuple[int, list[Event]]:
     base = build_search_query(
         q,
@@ -96,10 +100,13 @@ def search_events(
         since_minutes=since_minutes,
         limit=limit,
         offset=offset,
+        tenant_id=tenant_id,
     )
     count_stmt = select(func.count()).select_from(Event)
     field_filters, free_terms = parse_query(q)
     clauses = []
+    if tenant_id:
+        clauses.append(Event.tenant_id == tenant_id)
     for field, value in field_filters:
         col = FIELD_MAP.get(field)
         if col is None:

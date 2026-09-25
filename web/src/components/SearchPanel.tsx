@@ -184,8 +184,8 @@ export default function SearchPanel() {
         )}
 
         <div className="query-section">
-          <h3 className="muted query-section-title">Query rapide</h3>
-          <div className="query-chips" role="group" aria-label="Query rapide">
+          <h3 className="muted query-section-title">Ricerche predefinite</h3>
+          <div className="query-chips" role="group" aria-label="Ricerche predefinite">
             {QUICK_QUERIES.map((item) => (
               <button
                 key={item.id}

@@ -20,6 +20,13 @@ const MAX_SAVED = 20;
 
 export const QUICK_QUERIES: QuickQuery[] = [
   {
+    id: "win-fail",
+    label: "Logon falliti",
+    q: "action:login_failed",
+    source_type: "windows",
+    severity: "",
+  },
+  {
     id: "fw-deny",
     label: "Deny firewall",
     q: "action:deny",
@@ -27,25 +34,11 @@ export const QUICK_QUERIES: QuickQuery[] = [
     severity: "",
   },
   {
-    id: "win-fail",
-    label: "Logon Windows falliti",
-    q: "action:login_failed",
+    id: "audit-cleared",
+    label: "Audit cleared",
+    q: "action:audit_cleared",
     source_type: "windows",
     severity: "",
-  },
-  {
-    id: "cloud-fail",
-    label: "Auth cloud fallite",
-    q: "action:login_failed",
-    source_type: "cloud_auth",
-    severity: "",
-  },
-  {
-    id: "high-sev",
-    label: "Severity alta",
-    q: "",
-    source_type: "",
-    severity: "high",
   },
   {
     id: "malware",
@@ -55,10 +48,10 @@ export const QUICK_QUERIES: QuickQuery[] = [
     severity: "",
   },
   {
-    id: "ext-ip",
-    label: "IP esterno RFC5737",
-    q: "src_ip:203.0.113.45",
-    source_type: "",
+    id: "cloud-fail",
+    label: "Auth cloud fallite",
+    q: "action:login_failed",
+    source_type: "cloud_auth",
     severity: "",
   },
 ];

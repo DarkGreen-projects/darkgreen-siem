@@ -1,9 +1,19 @@
 # Demo FortiGate-like syslog lines (fictitious RFC5737 addresses)
-<134>date=2026-09-09 time=08:01:12 devname="fw-edge-01" srcip=203.0.113.45 dstip=10.0.10.22 srcport=54321 dstport=443 proto=tcp action=deny policyid=12 msg="blocked outbound to suspicious host"
-<134>date=2026-09-09 time=08:02:44 devname="fw-edge-01" srcip=10.0.20.15 dstip=198.51.100.80 srcport=49152 dstport=22 proto=tcp action=deny policyid=44 msg="SSH deny from workstation"
-<134>date=2026-09-09 time=08:03:10 devname="fw-edge-01" srcip=10.0.20.15 dstip=192.0.2.10 srcport=50022 dstport=443 proto=tcp action=accept policyid=8 msg="web allow"
-<134>date=2026-09-09 time=08:04:01 devname="fw-edge-01" srcip=203.0.113.88 dstip=10.0.10.5 srcport=33333 dstport=3389 proto=tcp action=deny policyid=99 msg="RDP probe blocked"
-<134>date=2026-09-09 time=08:05:22 devname="fw-edge-01" srcip=10.0.30.2 dstip=8.8.8.8 srcport=53111 dstport=53 proto=udp action=accept policyid=3 msg="DNS allow"
-<134>date=2026-09-09 time=08:06:05 devname="fw-edge-01" srcip=10.0.20.15 dstip=203.0.113.200 srcport=51234 dstport=443 proto=tcp action=deny policyid=77 msg="deny to hot dst demo"
-<134>date=2026-09-09 time=08:06:40 devname="fw-edge-01" srcip=10.0.50.3 dstip=198.51.100.200 srcport=49876 dstport=8080 proto=tcp action=deny policyid=78 msg="deny to hot dst demo"
-<134>date=2026-09-09 time=08:07:15 devname="fw-edge-01" srcip=10.0.30.2 dstip=192.0.2.200 srcport=45555 dstport=22 proto=tcp action=deny policyid=79 msg="deny to hot dst demo"
+# Traffic deny with PRI + BSD-style leftovers handled by strip
+<134>date=2026-09-09 time=08:01:12 devname="fw-edge-01" devid="FG100DDEMO" vd="root" logid="0000000013" type="traffic" subtype="forward" level="warning" srcip=203.0.113.45 dstip=10.0.10.22 srcport=54321 dstport=443 srcintf="wan1" dstintf="lan" proto=6 action=deny policyid=12 policyname="block-suspicious" sessionid=998877 msg="blocked outbound to suspicious host"
+# Traffic accept
+<134>date=2026-09-09 time=08:03:10 devname="fw-edge-01" devid="FG100DDEMO" vd="root" logid="0000000020" type="traffic" subtype="forward" level="notice" srcip=10.0.20.15 dstip=192.0.2.10 srcport=50022 dstport=443 srcintf="lan" dstintf="wan1" proto=6 action=accept policyid=8 policyname="web-allow" sessionid=112233 msg="web allow"
+# SSH deny
+date=2026-09-09 time=08:02:44 devname="fw-edge-01" logid="0000000013" type="traffic" subtype="forward" level="warning" srcip=10.0.20.15 dstip=198.51.100.80 srcport=49152 dstport=22 proto=6 action=deny policyid=44 policyname="ssh-deny" msg="SSH deny from workstation"
+# RDP probe
+date=2026-09-09 time=08:04:01 devname="fw-edge-01" logid="0000000013" type="traffic" subtype="forward" srcip=203.0.113.88 dstip=10.0.10.5 srcport=33333 dstport=3389 proto=6 action=deny policyid=99 msg="RDP probe blocked"
+# DNS allow
+date=2026-09-09 time=08:05:22 devname="fw-edge-01" logid="0000000020" type="traffic" subtype="forward" level="information" srcip=10.0.30.2 dstip=8.8.8.8 srcport=53111 dstport=53 proto=17 action=accept policyid=3 msg="DNS allow"
+# UTM virus
+<134>date=2026-09-09 time=08:10:00 devname="fw-edge-01" devid="FG100DDEMO" vd="root" logid="0211008192" type="utm" subtype="virus" level="alert" srcip=10.0.20.40 dstip=198.51.100.50 srcport=50100 dstport=80 srcintf="lan" dstintf="wan1" proto=6 action=blocked policyid=55 filename="invoice.exe" url="http://mal.example/invoice.exe" msg="virus detected" sessionid=445566
+# UTM IPS
+date=2026-09-09 time=08:11:15 devname="fw-edge-01" devid="FG100DDEMO" vd="root" logid="0419016384" type="utm" subtype="ips" level="critical" srcip=203.0.113.200 dstip=10.0.10.22 srcport=4444 dstport=445 srcintf="wan1" dstintf="lan" proto=6 action=dropped attack="MS.SMB.Remote.Code.Execution" policyid=60 msg="IPS signature match" sessionid=778899
+# Hot deny demos
+date=2026-09-09 time=08:06:05 devname="fw-edge-01" logid="0000000013" type="traffic" subtype="forward" srcip=10.0.20.15 dstip=203.0.113.200 srcport=51234 dstport=443 proto=6 action=deny policyid=77 msg="deny to hot dst demo"
+date=2026-09-09 time=08:06:40 devname="fw-edge-01" logid="0000000013" type="traffic" subtype="forward" srcip=10.0.50.3 dstip=198.51.100.200 srcport=49876 dstport=8080 proto=6 action=deny policyid=78 msg="deny to hot dst demo"
+date=2026-09-09 time=08:07:15 devname="fw-edge-01" logid="0000000013" type="traffic" subtype="forward" srcip=10.0.30.2 dstip=192.0.2.200 srcport=45555 dstport=22 proto=6 action=deny policyid=79 msg="deny to hot dst demo"

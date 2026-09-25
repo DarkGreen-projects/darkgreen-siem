@@ -17,3 +17,7 @@ Thumbs.db
 *.log
 .idea/
 .vscode/
+logs/
+*.log
+*.log.gz
+

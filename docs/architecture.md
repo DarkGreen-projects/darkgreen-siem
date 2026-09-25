@@ -32,10 +32,33 @@ flowchart LR
 
 ## Tipi di sorgente
 
-1. **firewall** — syslog KV in stile FortiGate  
-2. **windows** — Windows Event JSON  
-3. **cloud_auth** — auth in stile Entra/Okta  
-4. **siem_export** — export EDR/SIEM JSON (es. shape Cynet)
+1. **firewall** - FortiGate syslog KV (PRI/header strip, traffic + UTM virus/IPS, labels: logid, type/subtype, intf, policy, url, attack, ...)  
+2. **windows** - Windows Event JSON  
+3. **cloud_auth** - auth in stile Entra/Okta  
+4. **siem_export** - export EDR/SIEM JSON (es. shape Cynet, thin)
+
+## Multi-tenant e RBAC
+
+Soft tenancy: `tenant_id` su eventi/alert/IOC (default `lab`). Tabelle `tenants` / `users`. Ruoli:
+
+- `admin` - Setup, purge, regole
+- `analyst` - search, alert write, regole, enrich
+- `viewer` - solo GET
+- `ingest` - solo ingest (machine token)
+
+Isolamento rigido per riga: nessun cross-tenant.
+
+## TLS e HA lab
+
+- TLS: `docker-compose.tls.yml` + certs in `deploy/certs/`
+- HA: `docker-compose.ha.yml` (api + api-b, nginx upstream). Postgres single; `lab_settings` in DB per override condivisi.
+
+## Sicurezza e storage
+
+- Syslog: size cap + rate limit; purge/silence per tenant; token invalidi se utente cancellato
+- `AUTH_ENABLED=false` richiede `ALLOW_INSECURE_NO_AUTH=true`
+- HA: solo `api` esegue rules/maintenance (`RUN_BACKGROUND_JOBS=false` su `api-b`); setup rilegge `lab_settings` da DB
+- `events.raw` compresso zlib se >512B; log API rotanti+gzip; Docker log max-size
 
 ## Ricerca
 
@@ -47,6 +70,11 @@ Regole YAML sotto `rules/`:
 
 - `type: match` — qualsiasi evento recente che soddisfa i filtri sui campi  
 - `type: threshold` — conteggio ≥ N raggruppato per un campo in una finestra temporale  
+- `type: correlation` — due (o più) step di match uniti su `join_on` (es. spray + login_success)
+
+## Collectors
+
+Vedi [collectors-windows-syslog.md](collectors-windows-syslog.md) (NXLog / rsyslog → UDP 5140). JSON Windows su syslog è normalizzato come `source_type=windows`.
 
 ## Porte locali
 

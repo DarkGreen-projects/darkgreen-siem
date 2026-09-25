@@ -57,7 +57,11 @@ function initialFromRule(rule?: Rule) {
     title: String(def.title || ""),
     description: rule?.description || "",
     threatBrief: rule?.threat_brief || "",
-    type: (rule?.type === "threshold" ? "threshold" : "match") as "match" | "threshold",
+    type: (rule?.type === "threshold"
+      ? "threshold"
+      : rule?.type === "correlation"
+        ? "correlation"
+        : "match") as "match" | "threshold" | "correlation",
     severity: rule?.severity || "medium",
     enabled: rule?.enabled ?? true,
     sourceTypes,
@@ -68,6 +72,23 @@ function initialFromRule(rule?: Rule) {
     cooldownMinutes: Number(def.cooldown_minutes) || 15,
     threshold: Number(def.threshold) || 5,
     groupBy: String(def.group_by || "user"),
+    joinOn: String(def.join_on || "src_ip"),
+    step1Min: Number((Array.isArray(def.steps) && (def.steps[0] as { min_count?: number })?.min_count) || 5),
+    step2Kind: (Array.isArray(def.steps) && (def.steps[1] as { enrich?: unknown })?.enrich
+      ? "enrich"
+      : "match") as "match" | "enrich",
+    step2Action: String(
+      (Array.isArray(def.steps) &&
+        asList((def.steps[1] as { match?: { action?: unknown } })?.match?.action)[0]) ||
+        "login_success"
+    ),
+    step2Min: Number((Array.isArray(def.steps) && (def.steps[1] as { min_count?: number })?.min_count) || 1),
+    enrichProviders: (() => {
+      const en = Array.isArray(def.steps)
+        ? (def.steps[1] as { enrich?: { providers?: string[] } })?.enrich
+        : undefined;
+      return en?.providers?.length ? en.providers.map(String) : ["vt", "abuseipdb"];
+    })(),
   };
 }
 
@@ -82,7 +103,7 @@ export default function RuleEditorForm({ mode, initial, onSaved, onCancel }: Pro
   const [title, setTitle] = useState(seed.title);
   const [description, setDescription] = useState(seed.description);
   const [threatBrief, setThreatBrief] = useState(seed.threatBrief);
-  const [type, setType] = useState<"match" | "threshold">(seed.type);
+  const [type, setType] = useState<"match" | "threshold" | "correlation">(seed.type);
   const [severity, setSeverity] = useState(seed.severity);
   const [enabled, setEnabled] = useState(seed.enabled);
   const [sourceTypes, setSourceTypes] = useState<string[]>(seed.sourceTypes);
@@ -93,6 +114,12 @@ export default function RuleEditorForm({ mode, initial, onSaved, onCancel }: Pro
   const [cooldownMinutes, setCooldownMinutes] = useState(seed.cooldownMinutes);
   const [threshold, setThreshold] = useState(seed.threshold);
   const [groupBy, setGroupBy] = useState(seed.groupBy);
+  const [joinOn, setJoinOn] = useState(seed.joinOn);
+  const [step1Min, setStep1Min] = useState(seed.step1Min);
+  const [step2Kind, setStep2Kind] = useState<"match" | "enrich">(seed.step2Kind);
+  const [step2Action, setStep2Action] = useState(seed.step2Action);
+  const [step2Min, setStep2Min] = useState(seed.step2Min);
+  const [enrichProviders, setEnrichProviders] = useState<string[]>(seed.enrichProviders);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -126,6 +153,27 @@ export default function RuleEditorForm({ mode, initial, onSaved, onCancel }: Pro
       payload.threshold = threshold;
       payload.group_by = groupBy;
     }
+    if (type === "correlation") {
+      const step1Match: Record<string, string | string[]> = { ...match };
+      payload.join_on = joinOn;
+      const step2 =
+        step2Kind === "enrich"
+          ? {
+              enrich: {
+                providers: enrichProviders.length ? enrichProviders : ["vt"],
+                verdicts: ["malicious", "suspicious"],
+                ioc_type: "ip",
+              },
+            }
+          : {
+              match: {
+                source_type: packFilter(sourceTypes.length ? sourceTypes : ["windows"]) || "windows",
+                action: step2Action,
+              },
+              min_count: step2Min,
+            };
+      payload.steps = [{ match: step1Match, min_count: step1Min }, step2];
+    }
     try {
       if (mode === "edit") {
         await api.updateRule(payload.id, payload);
@@ -146,8 +194,8 @@ export default function RuleEditorForm({ mode, initial, onSaved, onCancel }: Pro
         {mode === "edit" ? "Modifica regola di detection" : "Crea regola di detection"}
       </h3>
       <p className="muted">
-        Salva una regola YAML in <code className="mono">rules/</code>. Usa match per condizioni su
-        singolo evento, threshold per detection basate sul conteggio.
+        Salva una regola YAML in <code className="mono">rules/</code>. Match su singolo evento,
+        threshold sul conteggio, correlation per unire due segnali sullo stesso campo.
       </p>
 
       <div className="rule-form-grid">
@@ -197,23 +245,28 @@ export default function RuleEditorForm({ mode, initial, onSaved, onCancel }: Pro
             <InfoTip
               text={
                 type === "threshold"
-                  ? "Scatta quando il conteggio di eventi matching per un gruppo (es. user) raggiunge N nella finestra."
-                  : "Scatta quando un singolo evento recente soddisfa tutti i filtri."
+                  ? "Scatta quando il conteggio di eventi matching per un gruppo raggiunge N nella finestra."
+                  : type === "correlation"
+                    ? "Unisce due match (es. spray + success) sullo stesso join_on nella finestra."
+                    : "Scatta quando un singolo evento recente soddisfa tutti i filtri."
               }
             />
           </label>
           <select
             id="rule-type"
             value={type}
-            onChange={(e) => setType(e.target.value as "match" | "threshold")}
+            onChange={(e) => setType(e.target.value as "match" | "threshold" | "correlation")}
           >
             <option value="match">match</option>
             <option value="threshold">threshold</option>
+            <option value="correlation">correlation</option>
           </select>
           <p className="muted tip-inline">
             {type === "match"
               ? "Scatta quando un singolo evento recente soddisfa tutti i filtri."
-              : "Scatta quando il conteggio di eventi matching per un gruppo raggiunge N nella finestra."}
+              : type === "threshold"
+                ? "Scatta quando il conteggio di eventi matching per un gruppo raggiunge N nella finestra."
+                : "Unisce due segnali (step) sullo stesso campo entro la finestra."}
           </p>
         </div>
         <div className="rule-form-check">
@@ -363,6 +416,116 @@ export default function RuleEditorForm({ mode, initial, onSaved, onCancel }: Pro
               />
             </div>
           </div>
+        </>
+      )}
+
+      {type === "correlation" && (
+        <>
+          <h4 className="muted">Impostazioni correlation</h4>
+          <div className="rule-form-grid">
+            <div>
+              <label htmlFor="rule-join">Join on</label>
+              <select id="rule-join" value={joinOn} onChange={(e) => setJoinOn(e.target.value)}>
+                {GROUP_BY_OPTIONS.map((o) => (
+                  <option key={o} value={o}>
+                    {o}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label htmlFor="rule-s1min">Step 1 min_count</label>
+              <input
+                id="rule-s1min"
+                type="number"
+                min={1}
+                value={step1Min}
+                onChange={(e) => setStep1Min(Number(e.target.value) || 1)}
+              />
+            </div>
+            <div>
+              <label htmlFor="rule-s2kind">Step 2 tipo</label>
+              <select
+                id="rule-s2kind"
+                value={step2Kind}
+                onChange={(e) => setStep2Kind(e.target.value as "match" | "enrich")}
+              >
+                <option value="match">match (action)</option>
+                <option value="enrich">enrich (verdict TI)</option>
+              </select>
+            </div>
+            {step2Kind === "match" ? (
+              <>
+                <div>
+                  <label htmlFor="rule-s2act">Step 2 action</label>
+                  <select
+                    id="rule-s2act"
+                    value={step2Action}
+                    onChange={(e) => setStep2Action(e.target.value)}
+                  >
+                    {ACTION_OPTIONS.map((o) => (
+                      <option key={o.value} value={o.value}>
+                        {o.value}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label htmlFor="rule-s2min">Step 2 min_count</label>
+                  <input
+                    id="rule-s2min"
+                    type="number"
+                    min={1}
+                    value={step2Min}
+                    onChange={(e) => setStep2Min(Number(e.target.value) || 1)}
+                  />
+                </div>
+              </>
+            ) : (
+              <div style={{ gridColumn: "1 / -1" }}>
+                <label>Enrich providers</label>
+                <div className="chip-multi">
+                  {["vt", "abuseipdb", "otx"].map((p) => (
+                    <button
+                      key={p}
+                      type="button"
+                      className={`chip-option${enrichProviders.includes(p) ? " selected" : ""}`}
+                      onClick={() => setEnrichProviders((prev) => toggleValue(prev, p))}
+                    >
+                      {p}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+            <div>
+              <label htmlFor="rule-win-c">Finestra (minuti)</label>
+              <input
+                id="rule-win-c"
+                type="number"
+                min={1}
+                value={windowMinutes}
+                onChange={(e) => setWindowMinutes(Number(e.target.value) || 1)}
+              />
+            </div>
+            <div>
+              <label htmlFor="rule-cd-c">Cooldown (minuti)</label>
+              <input
+                id="rule-cd-c"
+                type="number"
+                min={1}
+                value={cooldownMinutes}
+                onChange={(e) => setCooldownMinutes(Number(e.target.value) || 1)}
+              />
+            </div>
+          </div>
+          <p className="muted">
+            Step 1 usa i filtri match sopra. Step 2:{" "}
+            {step2Kind === "enrich"
+              ? `enrich verdict malicious/suspicious su ${joinOn} (${enrichProviders.join(", ") || "vt"})`
+              : `match action ${step2Action} sullo stesso ${joinOn}`}
+            .
+          </p>
         </>
       )}
 

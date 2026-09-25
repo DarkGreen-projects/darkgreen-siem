@@ -18,7 +18,14 @@ def detect_source_type(payload: Any, hint: str | None = None) -> str:
         return hint.lower().strip()
     if isinstance(payload, str):
         lower = payload.lower()
-        if "srcip=" in lower or "dstip=" in lower or "devname=" in lower:
+        if (
+            "srcip=" in lower
+            or "dstip=" in lower
+            or "devname=" in lower
+            or "logid=" in lower
+            or "devid=" in lower
+            or ("type=" in lower and "subtype=" in lower)
+        ):
             return "firewall"
         if payload.strip().startswith("{"):
             try:

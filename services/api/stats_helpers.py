@@ -35,12 +35,19 @@ def build_bucket_bounds(
     return bounds
 
 
-def health_status(silent_for_seconds: int | None) -> str:
+def health_status(
+    silent_for_seconds: int | None,
+    *,
+    stale_minutes: int = 5,
+    silent_minutes: int = 30,
+) -> str:
     if silent_for_seconds is None:
         return "silent"
-    if silent_for_seconds < 5 * 60:
+    stale_sec = max(1, int(stale_minutes)) * 60
+    silent_sec = max(stale_sec, int(silent_minutes) * 60)
+    if silent_for_seconds < stale_sec:
         return "ok"
-    if silent_for_seconds < 30 * 60:
+    if silent_for_seconds < silent_sec:
         return "stale"
     return "silent"
 

@@ -34,6 +34,7 @@ export default function Dashboard() {
   const [error, setError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<AlertStatus | "all">("all");
   const [filteredAlerts, setFilteredAlerts] = useState<Alert[] | null>(null);
+  const [exporting, setExporting] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -114,6 +115,17 @@ export default function Dashboard() {
     setFilteredAlerts((prev) =>
       prev ? prev.map((x) => (x.id === updated.id ? updated : x)) : prev
     );
+  };
+
+  const exportCsv = async () => {
+    setExporting(true);
+    try {
+      await api.exportAlertsCsv(statusFilter === "all" ? undefined : statusFilter);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setExporting(false);
+    }
   };
 
   return (
@@ -234,7 +246,9 @@ export default function Dashboard() {
                     style={{ background: SOURCE_COLORS[h.source_type] || "#9bb8a8" }}
                   />
                   <strong className="mono">{h.source_type}</strong>
-                  <span className={`badge health-${h.status}`}>{h.status}</span>
+                  <span className={`badge health-${h.status}`}>
+                    {h.status === "silent" ? "NESSUN EVENTO" : h.status}
+                  </span>
                 </div>
                 <div className="muted mono" style={{ fontSize: "0.8rem" }}>
                   ultimo:{" "}
@@ -279,12 +293,17 @@ export default function Dashboard() {
       </div>
 
       <div className="panel">
-        <h3 className="muted">
-          Alert{" "}
-          {statusFilter === "all"
-            ? "recenti"
-            : STATUS_FILTERS.find((f) => f.id === statusFilter)?.label.toLowerCase()}
-        </h3>
+        <div className="row" style={{ alignItems: "center", marginBottom: "0.5rem" }}>
+          <h3 className="muted" style={{ margin: 0, flex: 1 }}>
+            Alert{" "}
+            {statusFilter === "all"
+              ? "recenti"
+              : STATUS_FILTERS.find((f) => f.id === statusFilter)?.label.toLowerCase()}
+          </h3>
+          <button type="button" className="ghost" disabled={exporting} onClick={exportCsv}>
+            {exporting ? "Export…" : "Esporta CSV"}
+          </button>
+        </div>
         {alertsShown.length === 0 ? (
           <p className="muted">Nessun alert in questo filtro.</p>
         ) : (

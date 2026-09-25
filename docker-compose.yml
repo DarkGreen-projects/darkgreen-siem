@@ -1,6 +1,11 @@
 services:
   postgres:
     image: postgres:16-alpine
+    logging: &default_logging
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     environment:
       POSTGRES_USER: siem
       POSTGRES_PASSWORD: siem
@@ -17,6 +22,7 @@ services:
     build:
       context: .
       dockerfile: services/api/Dockerfile
+    logging: *default_logging
     environment:
       DATABASE_URL: postgresql+psycopg://siem:siem@postgres:5432/darkgreen_siem
       RULES_DIR: /app/rules
@@ -24,18 +30,32 @@ services:
       SYSLOG_HOST: 0.0.0.0
       SYSLOG_PORT: "5140"
       SEED_ON_START: "true"
+      LOG_DIR: /app/logs
       CORS_ORIGINS: http://localhost:8080,http://127.0.0.1:8080
       AUTH_ENABLED: "true"
       DEMO_USERNAME: analyst
       DEMO_PASSWORD: darkgreen
       AUTH_SECRET: darkgreen-siem-compose-secret
       SIEM_API_TOKEN: dg-lab-token-compose
+      RETENTION_DAYS: "7"
+      HEALTH_STALE_MINUTES: "5"
+      HEALTH_SILENT_MINUTES: "30"
+      SILENCE_ALERTS_ENABLED: "true"
+      PURGE_INTERVAL_SEC: "300"
+      VT_API_KEY: ${VT_API_KEY:-}
+      VT_CACHE_TTL_HOURS: "24"
+      ABUSEIPDB_API_KEY: ${ABUSEIPDB_API_KEY:-}
+      OTX_API_KEY: ${OTX_API_KEY:-}
+      DEFAULT_TENANT_ID: lab
+      DEFAULT_TENANT_NAME: Lab
+      RUN_BACKGROUND_JOBS: "true"
     ports:
       - "8000:8000"
       - "5140:5140/udp"
     volumes:
       - ./rules:/app/rules:rw
       - ./samples:/app/samples:ro
+      - api_logs:/app/logs
     depends_on:
       postgres:
         condition: service_healthy
@@ -44,6 +64,7 @@ services:
     build:
       context: ./web
       dockerfile: Dockerfile
+    logging: *default_logging
     ports:
       - "8080:80"
     depends_on:
@@ -53,6 +74,7 @@ services:
     build:
       context: .
       dockerfile: services/log-generator/Dockerfile
+    logging: *default_logging
     environment:
       API_URL: http://api:8000
       SYSLOG_HOST: api
@@ -64,3 +86,4 @@ services:
 
 volumes:
   pgdata:
+  api_logs:

@@ -57,7 +57,9 @@ def seed_samples(db: Session, samples_dir: str | Path) -> int:
             )
             # Spread seed events over the last ~8 minutes so threshold rules fire
             normalized.timestamp = now - timedelta(seconds=30 * (len(payloads) - idx))
-            insert_normalized(db, normalized.to_row())
+            row = normalized.to_row()
+            row["tenant_id"] = "lab"
+            insert_normalized(db, row)
             count += 1
     db.commit()
     logger.info("Seeded %s events", count)

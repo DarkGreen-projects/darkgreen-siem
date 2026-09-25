@@ -1,5 +1,5 @@
-import { useMemo, useState } from "react";
-import { api, type Alert, type AlertStatus } from "../api";
+import { useEffect, useMemo, useState } from "react";
+import { api, type Alert, type AlertStatus, type VtEnrich } from "../api";
 import { extractIocsFromAlert, type IocHit } from "../vtLinks";
 
 export const ALERT_STATUS_OPTIONS: { value: AlertStatus; label: string }[] = [
@@ -17,26 +17,79 @@ type Props = {
 };
 
 function IocList({ iocs }: { iocs: IocHit[] }) {
+  const [verdicts, setVerdicts] = useState<Record<string, VtEnrich[]>>({});
+  const [vtNote, setVtNote] = useState<string | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    const run = async () => {
+      const next: Record<string, VtEnrich[]> = {};
+      let anyConfigured = false;
+      for (const ioc of iocs.slice(0, 8)) {
+        const key = `${ioc.kind}:${ioc.value}`;
+        try {
+          const res = await api.enrich(ioc.kind, ioc.value);
+          if (!alive) return;
+          next[key] = res.results || [];
+          if ((res.results || []).some((r) => r.available)) anyConfigured = true;
+          const msg = (res.results || []).find((r) => r.message)?.message;
+          if (msg && !(res.results || []).some((r) => r.available)) setVtNote(msg);
+        } catch {
+          /* ignore */
+        }
+      }
+      if (alive) {
+        setVerdicts(next);
+        if (!anyConfigured && !vtNote) {
+          setVtNote("Nessuna API enrichment configurata (Setup). Restano i link GUI.");
+        }
+      }
+    };
+    if (iocs.length) void run();
+    return () => {
+      alive = false;
+    };
+  }, [iocs]);
+
   if (iocs.length === 0) return null;
   return (
     <div className="ioc-block">
-      <strong>IOC · VirusTotal</strong>
+      <strong>IOC · Enrichment</strong>
+      {vtNote && (
+        <p className="muted" style={{ margin: "0.25rem 0", fontSize: "0.8rem" }}>
+          {vtNote}
+        </p>
+      )}
       <div className="ioc-row">
-        {iocs.map((ioc) => (
-          <span key={`${ioc.kind}:${ioc.value}`} className="ioc-chip">
-            <span className="badge">{ioc.kind}</span>
-            <code className="mono">{ioc.value}</code>
-            <a
-              className="vt-link"
-              href={ioc.vtUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              title="Apri su VirusTotal"
-            >
-              VT
-            </a>
-          </span>
-        ))}
+        {iocs.map((ioc) => {
+          const key = `${ioc.kind}:${ioc.value}`;
+          const results = verdicts[key] || [];
+          return (
+            <span key={key} className="ioc-chip">
+              <span className="badge">{ioc.kind}</span>
+              <code className="mono">{ioc.value}</code>
+              {results
+                .filter((r) => r.available && r.verdict)
+                .map((r) => (
+                  <span
+                    key={`${r.provider}-${r.verdict}`}
+                    className={`badge vt-verdict vt-${r.verdict}`}
+                  >
+                    {r.provider}:{r.verdict}
+                  </span>
+                ))}
+              <a
+                className="vt-link"
+                href={ioc.vtUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                title="Apri su VirusTotal"
+              >
+                VT
+              </a>
+            </span>
+          );
+        })}
       </div>
     </div>
   );
@@ -92,6 +145,8 @@ export default function AlertCard({
     }
   };
 
+  const audit = alert.audit || [];
+
   return (
     <div className={`list-item alert-card ${compact ? "compact" : ""}`}>
       <div className="alert-card-head">
@@ -131,6 +186,28 @@ export default function AlertCard({
             </option>
           ))}
         </select>
+      </div>
+
+      <div className="comment-thread">
+        <h4 className="muted">Cronologia</h4>
+        {audit.length === 0 ? (
+          <p className="muted" style={{ margin: "0.25rem 0" }}>
+            Nessun cambio stato ancora
+          </p>
+        ) : (
+          <ul className="comment-list audit-list">
+            {audit.map((a) => (
+              <li key={a.id}>
+                <div className="comment-meta mono">
+                  {a.actor} · {new Date(a.created_at).toLocaleString()}
+                </div>
+                <div>
+                  {a.from_status || "?"} → <strong>{a.to_status}</strong>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
 
       <div className="comment-thread">

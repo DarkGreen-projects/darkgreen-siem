@@ -61,6 +61,30 @@ def send_syslog(line: str) -> None:
 
 
 def gen_firewall(*, hot: bool = False) -> str:
+    kind = random.choice(["traffic", "traffic", "utm_virus", "utm_ips"]) if not hot else "traffic"
+    now = datetime.now(timezone.utc)
+    if kind == "utm_virus":
+        src = random.choice(IPS_INT)
+        dst = random.choice(IPS_EXT)
+        return (
+            f'<134>date={now:%Y-%m-%d} time={now:%H:%M:%S} devname="fw-edge-01" devid="FG100DDEMO" '
+            f'vd="root" logid="0211008192" type="utm" subtype="virus" level="alert" '
+            f'srcip={src} dstip={dst} srcport={random.randint(1024,65535)} dstport=80 '
+            f'srcintf="lan" dstintf="wan1" proto=6 action=blocked policyid={random.randint(1,99)} '
+            f'filename="demo.exe" url="http://mal.example/demo.exe" msg="virus detected" '
+            f'sessionid={random.randint(100000,999999)}'
+        )
+    if kind == "utm_ips":
+        src = random.choice(IPS_EXT)
+        dst = random.choice(IPS_INT)
+        return (
+            f'date={now:%Y-%m-%d} time={now:%H:%M:%S} devname="fw-edge-01" devid="FG100DDEMO" '
+            f'vd="root" logid="0419016384" type="utm" subtype="ips" level="critical" '
+            f'srcip={src} dstip={dst} srcport={random.randint(1024,65535)} dstport=445 '
+            f'srcintf="wan1" dstintf="lan" proto=6 action=dropped '
+            f'attack="MS.SMB.Remote.Code.Execution" policyid={random.randint(1,99)} '
+            f'msg="IPS signature match" sessionid={random.randint(100000,999999)}'
+        )
     action = "deny" if hot else random.choice(["deny", "deny", "accept", "deny"])
     src = random.choice(IPS_EXT if action == "deny" else IPS_INT)
     if hot:
@@ -68,11 +92,15 @@ def gen_firewall(*, hot: bool = False) -> str:
     else:
         dst = random.choice(IPS_INT if action == "deny" else IPS_EXT)
     port = random.choice([22, 443, 3389, 8080, 53])
+    level = "warning" if action == "deny" else "notice"
     return (
-        f'date={datetime.now(timezone.utc):%Y-%m-%d} time={datetime.now(timezone.utc):%H:%M:%S} '
-        f'devname="fw-edge-01" srcip={src} dstip={dst} srcport={random.randint(1024,65535)} '
-        f'dstport={port} proto=tcp action={action} policyid={random.randint(1,99)} '
-        f'msg="demo traffic {action}"'
+        f'<134>date={now:%Y-%m-%d} time={now:%H:%M:%S} '
+        f'devname="fw-edge-01" devid="FG100DDEMO" vd="root" logid="0000000013" '
+        f'type="traffic" subtype="forward" level="{level}" '
+        f'srcip={src} dstip={dst} srcport={random.randint(1024,65535)} '
+        f'dstport={port} srcintf="wan1" dstintf="lan" proto=6 action={action} '
+        f'policyid={random.randint(1,99)} policyname="demo-pol" '
+        f'sessionid={random.randint(100000,999999)} msg="demo traffic {action}"'
     )
 
 

@@ -5,7 +5,7 @@ import RuleEditorForm from "./RuleEditorForm";
 
 type EditorState = { mode: "create" } | { mode: "edit"; rule: Rule } | null;
 
-export default function DetectionsPanel() {
+export default function DetectionsPanel({ readOnly = false }: { readOnly?: boolean }) {
   const [rules, setRules] = useState<Rule[]>([]);
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -82,17 +82,21 @@ export default function DetectionsPanel() {
       <div className="panel">
         <div className="row" style={{ marginBottom: "0.75rem", alignItems: "center" }}>
           <h3 style={{ margin: 0, flex: 1 }}>Regole di detection</h3>
-          <button
-            className="ghost"
-            type="button"
-            onClick={() => setEditor({ mode: "create" })}
-            disabled={busy}
-          >
-            Crea regola
-          </button>
-          <button className="ghost" type="button" onClick={() => void runNow()} disabled={busy}>
-            {busy ? "Esecuzione…" : "Esegui regole ora"}
-          </button>
+          {!readOnly && (
+            <>
+              <button
+                className="ghost"
+                type="button"
+                onClick={() => setEditor({ mode: "create" })}
+                disabled={busy}
+              >
+                Crea regola
+              </button>
+              <button className="ghost" type="button" onClick={() => void runNow()} disabled={busy}>
+                {busy ? "Esecuzione…" : "Esegui regole ora"}
+              </button>
+            </>
+          )}
         </div>
         <p className="muted" style={{ marginTop: 0 }}>
           Rivaluta le regole YAML sugli eventi recenti (come il loop in background). Crea nuovi
@@ -126,32 +130,34 @@ export default function DetectionsPanel() {
                     id={r.id}
                   </p>
                 </div>
-                <div className="rule-row-actions">
-                  <button
-                    className="ghost"
-                    type="button"
-                    disabled={rowBusy === r.id}
-                    onClick={() => void toggleEnabled(r)}
-                  >
-                    {r.enabled ? "Disabilita" : "Abilita"}
-                  </button>
-                  <button
-                    className="ghost"
-                    type="button"
-                    disabled={rowBusy === r.id}
-                    onClick={() => setEditor({ mode: "edit", rule: r })}
-                  >
-                    Modifica
-                  </button>
-                  <button
-                    className="ghost danger"
-                    type="button"
-                    disabled={rowBusy === r.id}
-                    onClick={() => void deleteRule(r)}
-                  >
-                    Elimina
-                  </button>
-                </div>
+                {!readOnly && (
+                  <div className="rule-row-actions">
+                    <button
+                      className="ghost"
+                      type="button"
+                      disabled={rowBusy === r.id}
+                      onClick={() => void toggleEnabled(r)}
+                    >
+                      {r.enabled ? "Disabilita" : "Abilita"}
+                    </button>
+                    <button
+                      className="ghost"
+                      type="button"
+                      disabled={rowBusy === r.id}
+                      onClick={() => setEditor({ mode: "edit", rule: r })}
+                    >
+                      Modifica
+                    </button>
+                    <button
+                      className="ghost danger"
+                      type="button"
+                      disabled={rowBusy === r.id}
+                      onClick={() => void deleteRule(r)}
+                    >
+                      Elimina
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           ))}
@@ -172,7 +178,7 @@ export default function DetectionsPanel() {
         </div>
       </div>
 
-      {editor && (
+      {!readOnly && editor && (
         <div
           className="modal-backdrop"
           role="presentation"

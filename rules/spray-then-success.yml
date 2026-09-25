@@ -1,0 +1,25 @@
+id: spray-then-success
+name: Spray then successful logon
+title: Password spray seguito da login_success
+description: >
+  Correlazione: almeno 5 login_failed Windows dallo stesso src_ip e poi almeno
+  un login_success dallo stesso IP entro 30 minuti.
+threat_brief: >
+  Pattern tipico di password spray riuscito: molti fallimenti da un IP esterno
+  seguiti da un logon valido. Isolare l account riuscito, reset password, e
+  verificare sessioni/RDP/VPN dallo stesso origine.
+type: correlation
+severity: critical
+enabled: true
+window_minutes: 30
+cooldown_minutes: 60
+join_on: src_ip
+steps:
+  - match:
+      source_type: windows
+      action: login_failed
+    min_count: 5
+  - match:
+      source_type: windows
+      action: login_success
+    min_count: 1

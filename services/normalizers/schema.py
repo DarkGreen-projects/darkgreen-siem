@@ -41,6 +41,7 @@ class NormalizedEvent(BaseModel):
     event_id: str | None = None
     channel: str | None = None
     provider: str | None = None
+    tenant_id: str = "lab"
 
     @field_validator("src_ip", "dst_ip", mode="before")
     @classmethod
@@ -48,6 +49,9 @@ class NormalizedEvent(BaseModel):
         return _sanitize_ip(v if v is None else str(v))
 
     def to_row(self) -> dict[str, Any]:
+        from .compress import compress_raw
+
+        raw_text = (self.raw or "")[:65536]
         return {
             "timestamp": self.timestamp,
             "source_type": self.source_type,
@@ -60,10 +64,11 @@ class NormalizedEvent(BaseModel):
             "action": self.action,
             "severity": self.severity.lower() if self.severity else "info",
             "message": (self.message or "")[:2048],
-            "raw": (self.raw or "")[:65536],
+            "raw": compress_raw(raw_text),
             "labels": self.labels,
             "ingest_channel": self.ingest_channel,
             "event_id": (self.event_id or None) and str(self.event_id)[:64],
             "channel": (self.channel or None) and str(self.channel)[:128],
             "provider": (self.provider or None) and str(self.provider)[:128],
+            "tenant_id": (self.tenant_id or "lab")[:64],
         }

@@ -101,6 +101,13 @@ class EventOut(BaseModel):
     class Config:
         from_attributes = True
 
+    @field_validator("raw", mode="before")
+    @classmethod
+    def _decompress_raw(cls, v: Any) -> str:
+        from .raw_compress import decompress_raw
+
+        return decompress_raw(str(v) if v is not None else "")
+
 
 class SearchResponse(BaseModel):
     total: int
@@ -159,11 +166,37 @@ class AlertOut(BaseModel):
     evidence: dict[str, Any]
     threat_brief: str | None = None
     comments: list[CommentOut] = Field(default_factory=list)
+    audit: list["AuditOut"] = Field(default_factory=list)
     created_at: datetime
     acked_at: datetime | None = None
 
     class Config:
         from_attributes = True
+
+
+class AuditOut(BaseModel):
+    id: int
+    alert_id: int
+    actor: str
+    from_status: str
+    to_status: str
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class VtEnrichOut(BaseModel):
+    available: bool
+    cached: bool = False
+    ioc_type: str | None = None
+    value: str | None = None
+    verdict: str | None = None
+    malicious_count: int = 0
+    stats: dict[str, Any] = Field(default_factory=dict)
+    fetched_at: str | None = None
+    message: str | None = None
+    error: str | None = None
 
 
 class AlertSearchHit(AlertOut):
@@ -195,6 +228,8 @@ class RuleCreate(BaseModel):
     match: dict[str, Any] = Field(default_factory=dict)
     threshold: int | None = Field(default=None, ge=1, le=MAX_THRESHOLD)
     group_by: str | None = None
+    join_on: str | None = None
+    steps: list[dict[str, Any]] | None = None
     overwrite: bool = False
 
     @field_validator("type")
@@ -202,7 +237,7 @@ class RuleCreate(BaseModel):
     def type_ok(cls, v: str) -> str:
         t = v.strip().lower()
         if t not in ALLOWED_TYPES:
-            raise ValueError("type must be match or threshold")
+            raise ValueError("type must be match, threshold, or correlation")
         return t
 
     @field_validator("severity")
@@ -246,4 +281,57 @@ class StatsOut(BaseModel):
     recent_alerts: list[AlertOut]
 
 
+class SetupOut(BaseModel):
+    retention_days: int
+    health_stale_minutes: int
+    health_silent_minutes: int
+    silence_alerts_enabled: bool
+    purge_interval_sec: int
+    last_purge_at: datetime | None = None
+    last_purge_deleted: int = 0
+    vt_configured: bool = False
+    vt_api_key_masked: str | None = None
+    abuseipdb_configured: bool = False
+    abuseipdb_api_key_masked: str | None = None
+    otx_configured: bool = False
+    otx_api_key_masked: str | None = None
+
+
+class SetupUpdate(BaseModel):
+    retention_days: int | None = Field(default=None, ge=0, le=3650)
+    health_stale_minutes: int | None = Field(default=None, ge=1, le=10080)
+    health_silent_minutes: int | None = Field(default=None, ge=1, le=10080)
+    silence_alerts_enabled: bool | None = None
+    vt_api_key: str | None = Field(default=None, max_length=256)
+    abuseipdb_api_key: str | None = Field(default=None, max_length=256)
+    otx_api_key: str | None = Field(default=None, max_length=256)
+
+
+class ProviderEnrichOut(BaseModel):
+    provider: str
+    available: bool
+    cached: bool = False
+    ioc_type: str | None = None
+    value: str | None = None
+    verdict: str | None = None
+    malicious_count: int = 0
+    stats: dict[str, Any] = Field(default_factory=dict)
+    fetched_at: str | None = None
+    message: str | None = None
+    error: str | None = None
+
+
+class MultiEnrichOut(BaseModel):
+    ioc_type: str
+    value: str
+    results: list[ProviderEnrichOut] = Field(default_factory=list)
+
+
+class PurgeResult(BaseModel):
+    deleted: int
+    cutoff: str | None = None
+    skipped: bool = False
+
+
 SearchResponse.model_rebuild()
+AlertOut.model_rebuild()

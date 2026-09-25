@@ -16,13 +16,16 @@ Parte del portfolio [DarkGreen Projects](https://github.com/DarkGreen-projects).
 | Area | Dettaglio |
 |------|-----------|
 | **Ingest** | HTTP `/api/ingest`, syslog UDP `5140`, seed da `samples/`, traffico continuo via `log-generator` |
-| **Normalizzazione** | 4 `source_type` (`firewall`, `windows`, `cloud_auth`, `siem_export`) → schema ECS-lite |
-| **Ricerca** | Query `field:value` + free-text; hit anche su alert/commenti |
-| **Dashboard** | EPS, timeline per sorgente, health strip, filtri/conteggi per stato alert |
-| **Detection** | Regole YAML match/threshold; CRUD da UI (modal); enable/disable |
-| **Alert workflow** | Stati open / ack / in corso / chiuso + commenti |
-| **Sorgenti** | Canali live + onboarding agent (UI demo, download barrati) |
-| **VirusTotal** | Link GUI diretti su IP / URL / domain estratti da evidence e testo alert |
+| **Normalizzazione** | FortiGate syslog KV completo (`firewall`) + windows / cloud_auth / siem_export (Cynet thin) |
+| **Auth / RBAC** | Soft multi-tenant + ruoli admin/analyst/viewer/ingest |
+| **TLS / HA** | Overlay Compose TLS + 2 API dietro nginx (vedi README) |
+| **Ricerca** | Query `field:value` + free-text; **ricerche predefinite** (login_failed, deny, audit_cleared, malware…) |
+| **Dashboard** | EPS, timeline per sorgente, health strip, filtri stato alert, **export CSV** |
+| **Setup lab** | Retention eventi, soglie silence, purge manuale/automatico |
+| **Detection** | Regole YAML match / threshold / **correlation**; CRUD da UI |
+| **Alert workflow** | Stati open / ack / in corso / chiuso + commenti + **audit trail** (chi/quando) |
+| **Sorgenti** | Canali live + onboarding agent; alert ops se silenziose; [guida collectors](docs/collectors-windows-syslog.md) |
+| **VirusTotal / TI** | Key in Setup (VT, AbuseIPDB, OTX) + verdict in cache sulle card; correlazione enrich |
 
 ## Avvio rapido
 
@@ -45,9 +48,69 @@ Stop: `Ctrl+C` oppure `docker compose down`.
 In Compose l’API richiede un Bearer token su `/api/*` (eccetto `POST /api/auth/login` e `/health`):
 
 - **UI**: login username/password → token HMAC (TTL ~12h) in `localStorage`
-- **Credenziali demo**: `DEMO_USERNAME` / `DEMO_PASSWORD` (default `analyst` / `darkgreen`)
-- **Ingest / log-generator**: header `Authorization: Bearer <SIEM_API_TOKEN>`
-- **Playground aperto**: imposta `AUTH_ENABLED=false` sull’API per disabilitare il gate
+- **Utenti bootstrap**: `analyst` / `darkgreen` (ruolo **admin**), `viewer` / `viewer` (solo lettura)
+- **Ruoli**: `admin` (setup/purge), `analyst` (alert/regole/enrich), `viewer` (GET), `ingest` (machine token)
+- **Multi-tenant soft**: colonna `tenant_id` (default `lab`); ogni utente vede solo il proprio tenant
+- **Ingest / log-generator**: header `Authorization: Bearer <SIEM_API_TOKEN>` (ruolo ingest)
+- **Playground aperto**: `AUTH_ENABLED=false` richiede anche `ALLOW_INSECURE_NO_AUTH=true` (anti-misconfig)
+- Syslog UDP: max 64 KiB/datagram + rate limit per host (200/s)
+
+### Compressione e performance
+
+- **`events.raw`**: zlib automatico sopra ~512 byte (`ZLIB1:` prefix); decompress in API/UI. Linee corte restano plain per ricerca `ILIKE`.
+- **Log API**: `logs/api.log` con rotazione 2MB × 5, backup `.gz` (`LOG_DIR`)
+- **Docker**: driver `json-file` `max-size=10m` / `max-file=3` su tutti i servizi
+
+### TLS (lab HTTPS)
+
+```bash
+# genera cert self-signed in deploy/certs/
+bash scripts/gen-tls.sh
+# oppure: powershell -File scripts/gen-tls.ps1
+
+docker compose -f docker-compose.yml -f docker-compose.tls.yml up --build
+```
+
+UI HTTPS: **https://localhost:8443** (warning browser sul self-signed). L’API non e pubblica su `:8000`. Syslog UDP resta plaintext su `5140`.
+
+### HA lab (2 API)
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.ha.yml up --build
+```
+
+Nginx bilancia `api` + `api-b`. Postgres resta single-node (failover DB fuori scope). Override Setup (key TI, retention) sono in tabella `lab_settings` condivisa.
+
+### Setup lab (retention e silence)
+
+Tab **Setup** in UI (o env Compose):
+
+| Env | Default | Ruolo |
+|-----|---------|--------|
+| `RETENTION_DAYS` | `7` | Cancella eventi più vecchi di N giorni (`0` = off) |
+| `HEALTH_STALE_MINUTES` | `5` | Soglia health `stale` |
+| `HEALTH_SILENT_MINUTES` | `30` | Soglia health `silent` + cooldown alert ops |
+| `SILENCE_ALERTS_ENABLED` | `true` | Alert `source-silent-*` se una sorgente tace |
+| `PURGE_INTERVAL_SEC` | `300` | Intervallo job purge/silence |
+
+API: `GET/PATCH /api/setup`, `POST /api/admin/purge`, `GET /api/alerts/export.csv`.
+
+### VirusTotal enrichment
+
+Imposta le API key in **Setup → Enrichment API** (o env Compose). Provider supportati:
+
+| Env / Setup | Provider |
+|-------------|----------|
+| `VT_API_KEY` | VirusTotal |
+| `ABUSEIPDB_API_KEY` | AbuseIPDB |
+| `OTX_API_KEY` | AlienVault OTX |
+| `VT_CACHE_TTL_HOURS` | TTL cache (default 24) |
+
+Senza key restano i link GUI. Con key: `GET /api/enrich` (multi) e `GET /api/enrich/vt`. Le regole `correlation` possono avere uno step `enrich` (vedi `rules/spray-then-malicious-ip.yml`).
+
+### Collectors Windows / syslog
+
+Guida NXLog / rsyslog verso UDP 5140: [docs/collectors-windows-syslog.md](docs/collectors-windows-syslog.md).
 
 ## Query di esempio
 

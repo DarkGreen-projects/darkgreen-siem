@@ -11,7 +11,7 @@ from .input_limits import escape_like
 
 
 def search_alerts_by_text(
-    db: Session, q: str, *, limit: int = 50
+    db: Session, q: str, *, limit: int = 50, tenant_id: str | None = None
 ) -> list[tuple[Alert, str | None]]:
     """Return alerts matching title/description/comments, with matched comment snippet."""
     terms = search_terms_from_query(q)
@@ -32,6 +32,8 @@ def search_alerts_by_text(
         .order_by(Alert.created_at.desc())
         .limit(limit * 3)
     )
+    if tenant_id:
+        stmt = stmt.where(Alert.tenant_id == tenant_id)
     rows = list(db.execute(stmt).all())
 
     # Deduplicate by alert id; prefer a matching comment snippet

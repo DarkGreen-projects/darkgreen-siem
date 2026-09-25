@@ -1,4 +1,4 @@
-"""Auth helpers and Windows ECS-lite fields."""
+"""Auth helpers, RBAC, Windows ECS-lite fields."""
 
 from __future__ import annotations
 
@@ -17,9 +17,11 @@ from services.api.auth import (
     check_password,
     issue_user_token,
     require_auth,
+    require_perm,
     verify_user_token,
 )
 from services.api.config import Settings
+from services.api.rbac import role_allows
 from services.api.rule_validate import validate_rule_payload
 from services.normalizers import normalize_event
 
@@ -31,9 +33,16 @@ def _lab_settings(**kwargs) -> Settings:
         demo_password="darkgreen",
         auth_secret="test-secret-lab",
         siem_api_token="machine-token-lab",
+        default_tenant_id="lab",
     )
     base.update(kwargs)
     return Settings(**base)
+
+
+def _db() -> MagicMock:
+    db = MagicMock()
+    db.scalar.return_value = None
+    return db
 
 
 def test_login_credentials_ok():
@@ -45,9 +54,9 @@ def test_login_credentials_ok():
 
 def test_user_token_roundtrip():
     s = _lab_settings()
-    token, exp = issue_user_token(s, "analyst")
+    token, exp = issue_user_token(s, "analyst", role="admin", tenant_id="lab")
     assert exp > 0
-    assert verify_user_token(s, token) == "analyst"
+    assert verify_user_token(s, token) == ("analyst", "admin", "lab")
     assert verify_user_token(s, token + "x") is None
     assert verify_user_token(s, "not.a.token") is None
 
@@ -56,7 +65,7 @@ def test_require_auth_rejects_without_token():
     request = MagicMock()
     request.url.path = "/api/stats"
     with pytest.raises(HTTPException) as ei:
-        require_auth(request, authorization=None, settings=_lab_settings())
+        require_auth(request, authorization=None, settings=_lab_settings(), db=_db())
     assert ei.value.status_code == 401
 
 
@@ -64,19 +73,49 @@ def test_require_auth_accepts_machine_and_user_token():
     request = MagicMock()
     request.url.path = "/api/ingest"
     s = _lab_settings()
-    machine = require_auth(request, authorization="Bearer machine-token-lab", settings=s)
+    machine = require_auth(
+        request, authorization="Bearer machine-token-lab", settings=s, db=_db()
+    )
     assert machine.kind == "machine"
-    token, _ = issue_user_token(s, "analyst")
-    user = require_auth(request, authorization=f"Bearer {token}", settings=s)
+    assert machine.role == "ingest"
+    token, _ = issue_user_token(s, "analyst", role="admin", tenant_id="lab")
+    user = require_auth(
+        request, authorization=f"Bearer {token}", settings=s, db=_db()
+    )
     assert user.kind == "user"
     assert user.username == "analyst"
+    assert user.role == "admin"
 
 
 def test_require_auth_public_login():
     request = MagicMock()
     request.url.path = "/api/auth/login"
-    principal = require_auth(request, authorization=None, settings=_lab_settings())
+    principal = require_auth(
+        request, authorization=None, settings=_lab_settings(), db=_db()
+    )
     assert principal.kind == "public"
+
+
+def test_viewer_denied_purge():
+    request = MagicMock()
+    request.url.path = "/api/admin/purge"
+    s = _lab_settings()
+    token, _ = issue_user_token(s, "viewer", role="viewer", tenant_id="lab")
+    principal = require_auth(
+        request, authorization=f"Bearer {token}", settings=s, db=_db()
+    )
+    dep = require_perm("purge")
+    with pytest.raises(HTTPException) as ei:
+        dep(principal=principal)
+    assert ei.value.status_code == 403
+
+
+def test_role_allows_matrix():
+    assert role_allows("admin", "setup")
+    assert role_allows("analyst", "rules_write")
+    assert not role_allows("viewer", "purge")
+    assert role_allows("ingest", "ingest")
+    assert not role_allows("viewer", "enrich")
 
 
 def test_windows_audit_cleared_1102():

@@ -1,0 +1,59 @@
+# Overlay: HA lab (2 API replicas behind nginx). Postgres remains single-node.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.ha.yml up --build
+#
+# Lab settings (enrichment keys, retention) are persisted in Postgres (lab_settings)
+# so both API replicas share overrides. DB failover is out of scope - backup externally.
+
+services:
+  api-b:
+    build:
+      context: .
+      dockerfile: services/api/Dockerfile
+    environment:
+      DATABASE_URL: postgresql+psycopg://siem:siem@postgres:5432/darkgreen_siem
+      RULES_DIR: /app/rules
+      SAMPLES_DIR: /app/samples
+      SYSLOG_HOST: "127.0.0.1"
+      SYSLOG_PORT: "15140"
+      SEED_ON_START: "false"
+      CORS_ORIGINS: http://localhost:8080,http://127.0.0.1:8080
+      AUTH_ENABLED: "true"
+      DEMO_USERNAME: analyst
+      DEMO_PASSWORD: darkgreen
+      AUTH_SECRET: darkgreen-siem-compose-secret
+      SIEM_API_TOKEN: dg-lab-token-compose
+      RETENTION_DAYS: "7"
+      HEALTH_STALE_MINUTES: "5"
+      HEALTH_SILENT_MINUTES: "30"
+      SILENCE_ALERTS_ENABLED: "true"
+      PURGE_INTERVAL_SEC: "300"
+      VT_API_KEY: ${VT_API_KEY:-}
+      VT_CACHE_TTL_HOURS: "24"
+      ABUSEIPDB_API_KEY: ${ABUSEIPDB_API_KEY:-}
+      OTX_API_KEY: ${OTX_API_KEY:-}
+      DEFAULT_TENANT_ID: lab
+      RUN_BACKGROUND_JOBS: "false"
+    volumes:
+      - ./rules:/app/rules:rw
+      - ./samples:/app/samples:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      api:
+        condition: service_started
+
+  web:
+    volumes:
+      - ./web/nginx-ha.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - api
+      - api-b
+
+  log-generator:
+    environment:
+      API_URL: http://api:8000
+      SYSLOG_HOST: api
+      SYSLOG_PORT: "5140"
+      INTERVAL_SEC: "2"
+      SIEM_API_TOKEN: dg-lab-token-compose

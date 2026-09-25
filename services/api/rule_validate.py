@@ -18,8 +18,13 @@ from .input_limits import (
 
 RULE_ID_RE = re.compile(r"^[a-z0-9][a-z0-9_-]{1,62}$")
 ALLOWED_GROUP_BY = frozenset({"user", "src_ip", "host", "action", "source_type", "event_id"})
-ALLOWED_TYPES = frozenset({"match", "threshold"})
+ALLOWED_TYPES = frozenset({"match", "threshold", "correlation"})
 ALLOWED_SEVERITIES = frozenset({"critical", "high", "medium", "low", "info"})
+ALLOWED_ENRICH_PROVIDERS = frozenset({"vt", "abuseipdb", "otx"})
+ALLOWED_ENRICH_VERDICTS = frozenset(
+    {"malicious", "suspicious", "harmless", "undetected", "unknown"}
+)
+MAX_CORRELATION_STEPS = 4
 
 
 class RuleValidationError(ValueError):
@@ -39,27 +44,7 @@ def validate_rule_id(rule_id: str) -> str:
     return rid
 
 
-def validate_rule_payload(data: dict[str, Any]) -> dict[str, Any]:
-    """Normalize and validate a rule dict for persistence. Raises RuleValidationError."""
-    rule_id = validate_rule_id(str(data.get("id") or ""))
-
-    name = str(data.get("name") or "").strip()
-    if not name:
-        raise RuleValidationError("name is required")
-    if len(name) > MAX_RULE_NAME:
-        raise RuleValidationError(f"name must be <= {MAX_RULE_NAME} chars")
-
-    rtype = str(data.get("type") or "match").strip().lower()
-    if rtype not in ALLOWED_TYPES:
-        raise RuleValidationError("type must be match or threshold")
-
-    severity = str(data.get("severity") or "medium").strip().lower()
-    if severity not in ALLOWED_SEVERITIES:
-        raise RuleValidationError(
-            f"severity must be one of: {', '.join(sorted(ALLOWED_SEVERITIES))}"
-        )
-
-    match = data.get("match") or data.get("filters") or {}
+def _clean_match(match: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(match, dict) or not match:
         raise RuleValidationError("match filters are required (non-empty object)")
     if len(match) > MAX_MATCH_KEYS:
@@ -84,6 +69,28 @@ def validate_rule_payload(data: dict[str, Any]) -> dict[str, Any]:
                 clean_match[k] = v
     if not clean_match:
         raise RuleValidationError("match filters are required (non-empty object)")
+    return clean_match
+
+
+def validate_rule_payload(data: dict[str, Any]) -> dict[str, Any]:
+    """Normalize and validate a rule dict for persistence. Raises RuleValidationError."""
+    rule_id = validate_rule_id(str(data.get("id") or ""))
+
+    name = str(data.get("name") or "").strip()
+    if not name:
+        raise RuleValidationError("name is required")
+    if len(name) > MAX_RULE_NAME:
+        raise RuleValidationError(f"name must be <= {MAX_RULE_NAME} chars")
+
+    rtype = str(data.get("type") or "match").strip().lower()
+    if rtype not in ALLOWED_TYPES:
+        raise RuleValidationError("type must be match, threshold, or correlation")
+
+    severity = str(data.get("severity") or "medium").strip().lower()
+    if severity not in ALLOWED_SEVERITIES:
+        raise RuleValidationError(
+            f"severity must be one of: {', '.join(sorted(ALLOWED_SEVERITIES))}"
+        )
 
     description = str(data.get("description") or "").strip()[:MAX_RULE_TEXT]
     threat_brief = str(data.get("threat_brief") or "").strip()[:MAX_RULE_TEXT]
@@ -101,20 +108,91 @@ def validate_rule_payload(data: dict[str, Any]) -> dict[str, Any]:
         "enabled": bool(data.get("enabled", True)),
         "window_minutes": window,
         "cooldown_minutes": cooldown,
-        "match": clean_match,
     }
 
-    if rtype == "threshold":
-        threshold = int(data.get("threshold") or 0)
-        if threshold < 1 or threshold > MAX_THRESHOLD:
-            raise RuleValidationError(f"threshold must be 1..{MAX_THRESHOLD}")
-        group_by = str(data.get("group_by") or "user").strip()
-        if group_by not in ALLOWED_GROUP_BY:
+    if rtype == "correlation":
+        join_on = str(data.get("join_on") or "src_ip").strip()
+        if join_on not in ALLOWED_GROUP_BY:
             raise RuleValidationError(
-                f"group_by must be one of: {', '.join(sorted(ALLOWED_GROUP_BY))}"
+                f"join_on must be one of: {', '.join(sorted(ALLOWED_GROUP_BY))}"
             )
-        out["threshold"] = threshold
-        out["group_by"] = group_by
+        steps_raw = data.get("steps")
+        if not isinstance(steps_raw, list) or len(steps_raw) < 2:
+            raise RuleValidationError("correlation requires at least 2 steps")
+        if len(steps_raw) > MAX_CORRELATION_STEPS:
+            raise RuleValidationError(f"correlation may have at most {MAX_CORRELATION_STEPS} steps")
+        clean_steps: list[dict[str, Any]] = []
+        for i, step in enumerate(steps_raw):
+            if not isinstance(step, dict):
+                raise RuleValidationError(f"steps[{i}] must be an object")
+            if "enrich" in step and step.get("enrich") is not None:
+                enrich = step.get("enrich") or {}
+                if not isinstance(enrich, dict):
+                    raise RuleValidationError(f"steps[{i}].enrich must be an object")
+                providers_raw = enrich.get("providers") or ["vt"]
+                if isinstance(providers_raw, str):
+                    providers_raw = [providers_raw]
+                providers = []
+                for p in providers_raw:
+                    pl = str(p).strip().lower()
+                    if pl not in ALLOWED_ENRICH_PROVIDERS:
+                        raise RuleValidationError(
+                            f"steps[{i}].enrich.providers invalid; use: "
+                            f"{', '.join(sorted(ALLOWED_ENRICH_PROVIDERS))}"
+                        )
+                    providers.append(pl)
+                if not providers:
+                    raise RuleValidationError(f"steps[{i}].enrich.providers required")
+                verdicts_raw = enrich.get("verdicts") or ["malicious", "suspicious"]
+                if isinstance(verdicts_raw, str):
+                    verdicts_raw = [verdicts_raw]
+                verdicts = []
+                for v in verdicts_raw:
+                    vl = str(v).strip().lower()
+                    if vl not in ALLOWED_ENRICH_VERDICTS:
+                        raise RuleValidationError(
+                            f"steps[{i}].enrich.verdicts invalid; use: "
+                            f"{', '.join(sorted(ALLOWED_ENRICH_VERDICTS))}"
+                        )
+                    verdicts.append(vl)
+                ioc_type = str(enrich.get("ioc_type") or "ip").strip().lower()
+                if ioc_type not in {"ip", "domain", "url"}:
+                    raise RuleValidationError(f"steps[{i}].enrich.ioc_type must be ip|domain|url")
+                clean_steps.append(
+                    {
+                        "enrich": {
+                            "providers": providers,
+                            "verdicts": verdicts,
+                            "ioc_type": ioc_type,
+                        }
+                    }
+                )
+            else:
+                step_match = _clean_match(step.get("match") or {})
+                min_count = int(step.get("min_count") or 1)
+                if min_count < 1 or min_count > MAX_THRESHOLD:
+                    raise RuleValidationError(f"steps[{i}].min_count must be 1..{MAX_THRESHOLD}")
+                clean_steps.append({"match": step_match, "min_count": min_count})
+        out["join_on"] = join_on
+        out["steps"] = clean_steps
+        # Keep a synthetic match for list/UI compatibility (first match step)
+        first_match = next((s.get("match") for s in clean_steps if s.get("match")), {})
+        out["match"] = first_match or {"source_type": "windows"}
+    else:
+        match = data.get("match") or data.get("filters") or {}
+        out["match"] = _clean_match(match if isinstance(match, dict) else {})
+
+        if rtype == "threshold":
+            threshold = int(data.get("threshold") or 0)
+            if threshold < 1 or threshold > MAX_THRESHOLD:
+                raise RuleValidationError(f"threshold must be 1..{MAX_THRESHOLD}")
+            group_by = str(data.get("group_by") or "user").strip()
+            if group_by not in ALLOWED_GROUP_BY:
+                raise RuleValidationError(
+                    f"group_by must be one of: {', '.join(sorted(ALLOWED_GROUP_BY))}"
+                )
+            out["threshold"] = threshold
+            out["group_by"] = group_by
 
     if not out["threat_brief"]:
         del out["threat_brief"]

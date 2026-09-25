@@ -2,7 +2,7 @@ import { useState } from "react";
 import { api } from "../api";
 
 type Props = {
-  onLoggedIn: (username: string) => void;
+  onLoggedIn: (username: string, role: string, tenant: string) => void;
 };
 
 export default function LoginPanel({ onLoggedIn }: Props) {
@@ -17,7 +17,7 @@ export default function LoginPanel({ onLoggedIn }: Props) {
     setError(null);
     try {
       const res = await api.login(username.trim(), password);
-      onLoggedIn(res.username);
+      onLoggedIn(res.username, res.role, res.tenant_id);
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -30,8 +30,9 @@ export default function LoginPanel({ onLoggedIn }: Props) {
       <form className="panel login-panel" onSubmit={(e) => void submit(e)}>
         <h2 style={{ marginTop: 0 }}>Accesso lab</h2>
         <p className="muted">
-          Auth abilitata sul lab. Credenziali demo: <code className="mono">analyst</code> /{" "}
-          <code className="mono">darkgreen</code>
+          Admin demo: <code className="mono">analyst</code> /{" "}
+          <code className="mono">darkgreen</code>. Viewer:{" "}
+          <code className="mono">viewer</code> / <code className="mono">viewer</code>
         </p>
         <label htmlFor="login-user">Username</label>
         <input

@@ -1,0 +1,24 @@
+id: spray-then-malicious-ip
+name: Spray then malicious IP
+title: Login failed burst + IP malicious (enrich)
+description: >
+  Correlazione: almeno 5 login_failed Windows dallo stesso src_ip e verdict
+  malicious/suspicious da VirusTotal o AbuseIPDB sullo stesso IP.
+threat_brief: >
+  Spray o brute force da un IP gia segnalato da threat intel. Blocca l origine,
+  reset account colpiti, e verifica sessioni riuscite nelle ore successive.
+type: correlation
+severity: critical
+enabled: true
+window_minutes: 30
+cooldown_minutes: 60
+join_on: src_ip
+steps:
+  - match:
+      source_type: windows
+      action: login_failed
+    min_count: 5
+  - enrich:
+      providers: [vt, abuseipdb]
+      verdicts: [malicious, suspicious]
+      ioc_type: ip

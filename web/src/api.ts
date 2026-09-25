@@ -1,5 +1,7 @@
 const TOKEN_KEY = "darkgreen-siem.auth-token";
 const USER_KEY = "darkgreen-siem.auth-user";
+const ROLE_KEY = "darkgreen-siem.auth-role";
+const TENANT_KEY = "darkgreen-siem.auth-tenant";
 
 export type SiemEvent = {
   id: number;
@@ -43,8 +45,36 @@ export type Alert = {
   evidence: Record<string, unknown>;
   threat_brief: string | null;
   comments: AlertComment[];
+  audit?: AlertAuditEntry[];
   created_at: string;
   acked_at: string | null;
+};
+
+export type AlertAuditEntry = {
+  id: number;
+  alert_id: number;
+  actor: string;
+  from_status: string;
+  to_status: string;
+  created_at: string;
+};
+
+export type VtEnrich = {
+  available: boolean;
+  cached?: boolean;
+  provider?: string;
+  ioc_type?: string | null;
+  value?: string | null;
+  verdict?: string | null;
+  malicious_count?: number;
+  message?: string | null;
+  error?: string | null;
+};
+
+export type MultiEnrich = {
+  ioc_type: string;
+  value: string;
+  results: VtEnrich[];
 };
 
 export type AlertSearchHit = Alert & {
@@ -76,6 +106,8 @@ export type RuleCreatePayload = {
   match: Record<string, string | string[]>;
   threshold?: number;
   group_by?: string;
+  join_on?: string;
+  steps?: { match: Record<string, string | string[]>; min_count?: number }[];
   overwrite?: boolean;
 };
 
@@ -115,6 +147,28 @@ export type Stats = {
   recent_alerts: Alert[];
 };
 
+export type LabSetup = {
+  retention_days: number;
+  health_stale_minutes: number;
+  health_silent_minutes: number;
+  silence_alerts_enabled: boolean;
+  purge_interval_sec: number;
+  last_purge_at: string | null;
+  last_purge_deleted: number;
+  vt_configured?: boolean;
+  vt_api_key_masked?: string | null;
+  abuseipdb_configured?: boolean;
+  abuseipdb_api_key_masked?: string | null;
+  otx_configured?: boolean;
+  otx_api_key_masked?: string | null;
+};
+
+export type PurgeResult = {
+  deleted: number;
+  cutoff: string | null;
+  skipped: boolean;
+};
+
 export const SOURCE_COLORS: Record<string, string> = {
   firewall: "#3ddc97",
   windows: "#6ec1ff",
@@ -130,6 +184,22 @@ export function getStoredToken(): string | null {
   }
 }
 
+export type AuthMe = {
+  username: string;
+  kind: string;
+  role: string;
+  tenant_id: string;
+  tenant_name?: string | null;
+};
+
+export type LoginResult = {
+  token: string;
+  expires_at: number;
+  username: string;
+  role: string;
+  tenant_id: string;
+};
+
 export function getStoredUsername(): string | null {
   try {
     return localStorage.getItem(USER_KEY);
@@ -138,14 +208,39 @@ export function getStoredUsername(): string | null {
   }
 }
 
-export function setAuthSession(token: string, username: string) {
+export function getStoredRole(): string | null {
+  try {
+    return localStorage.getItem(ROLE_KEY);
+  } catch {
+    return null;
+  }
+}
+
+export function getStoredTenant(): string | null {
+  try {
+    return localStorage.getItem(TENANT_KEY);
+  } catch {
+    return null;
+  }
+}
+
+export function setAuthSession(
+  token: string,
+  username: string,
+  role?: string,
+  tenantId?: string
+) {
   localStorage.setItem(TOKEN_KEY, token);
   localStorage.setItem(USER_KEY, username);
+  if (role) localStorage.setItem(ROLE_KEY, role);
+  if (tenantId) localStorage.setItem(TENANT_KEY, tenantId);
 }
 
 export function clearAuthSession() {
   localStorage.removeItem(TOKEN_KEY);
   localStorage.removeItem(USER_KEY);
+  localStorage.removeItem(ROLE_KEY);
+  localStorage.removeItem(TENANT_KEY);
 }
 
 function authHeaders(extra?: Record<string, string>): Record<string, string> {
@@ -218,11 +313,11 @@ export const api = {
       }
       throw new Error(detail);
     }
-    const data = (await res.json()) as { token: string; expires_at: number; username: string };
-    setAuthSession(data.token, data.username);
+    const data = (await res.json()) as LoginResult;
+    setAuthSession(data.token, data.username, data.role, data.tenant_id);
     return data;
   },
-  me: () => getJson<{ username: string; kind: string }>("/api/auth/me"),
+  me: () => getJson<AuthMe>("/api/auth/me"),
   stats: (range: StatsRange | string = "1h") =>
     getJson<Stats>(`/api/stats?range=${encodeURIComponent(range)}`),
   sources: () => getJson<Source[]>("/api/sources"),
@@ -304,6 +399,53 @@ export const api = {
     const res = await fetch("/api/rules/run", { method: "POST", headers: authHeaders() });
     return handleRes<Alert[]>(res);
   },
+  setup: () => getJson<LabSetup>("/api/setup"),
+  updateSetup: async (payload: {
+    retention_days?: number;
+    health_stale_minutes?: number;
+    health_silent_minutes?: number;
+    silence_alerts_enabled?: boolean;
+    vt_api_key?: string;
+    abuseipdb_api_key?: string;
+    otx_api_key?: string;
+  }) => {
+    const res = await fetch("/api/setup", {
+      method: "PATCH",
+      headers: authHeaders({ "Content-Type": "application/json" }),
+      body: JSON.stringify(payload),
+    });
+    return handleRes<LabSetup>(res);
+  },
+  purge: async () => {
+    const res = await fetch("/api/admin/purge", { method: "POST", headers: authHeaders() });
+    return handleRes<PurgeResult>(res);
+  },
+  exportAlertsCsv: async (status?: string) => {
+    const url = status
+      ? `/api/alerts/export.csv?status=${encodeURIComponent(status)}`
+      : "/api/alerts/export.csv";
+    const res = await fetch(url, { headers: authHeaders() });
+    if (res.status === 401) {
+      clearAuthSession();
+      throw new AuthError();
+    }
+    if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+    const blob = await res.blob();
+    const a = document.createElement("a");
+    const href = URL.createObjectURL(blob);
+    a.href = href;
+    a.download = status ? `darkgreen-alerts-${status}.csv` : "darkgreen-alerts.csv";
+    a.click();
+    URL.revokeObjectURL(href);
+  },
+  enrichVt: (type: string, value: string) =>
+    getJson<VtEnrich>(
+      `/api/enrich/vt?type=${encodeURIComponent(type)}&value=${encodeURIComponent(value)}`
+    ),
+  enrich: (type: string, value: string, providers = "vt,abuseipdb,otx") =>
+    getJson<MultiEnrich>(
+      `/api/enrich?type=${encodeURIComponent(type)}&value=${encodeURIComponent(value)}&providers=${encodeURIComponent(providers)}`
+    ),
 };
 
 export function formatSilence(seconds: number | null): string {

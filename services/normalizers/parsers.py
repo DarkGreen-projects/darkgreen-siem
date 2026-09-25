@@ -25,7 +25,31 @@ SEVERITY_MAP = {
     "warning": "medium",
     "error": "high",
     "informational": "info",
+    # FortiGate level names
+    "alert": "critical",
+    "emergency": "critical",
+    "notice": "low",
+    "information": "info",
 }
+
+_DENY_ACTIONS = frozenset({"deny", "drop", "blocked", "block", "timeout", "reset", "client-rst", "server-rst"})
+_ALLOW_ACTIONS = frozenset({"accept", "pass", "allow", "close", "close-by-client", "close-by-server"})
+_UTM_SUBTYPES = frozenset({"virus", "ips", "webfilter", "app-ctrl", "app_ctrl", "botnet", "dlp", "emailfilter", "waf"})
+
+_SYSLOG_HEADER_RE = re.compile(
+    r"^(?:"
+    r"<\d+>"  # PRI
+    r"(?:1\s+)?"  # optional VERSION
+    r")?"
+    r"(?:"
+    r"(?:[A-Z][a-z]{2}\s+\d{1,2}\s+\d{2}:\d{2}:\d{2})"  # BSD timestamp
+    r"|(?:\d{4}-\d{2}-\d{2}T[\d:.+-]+Z?)"  # RFC3339
+    r")?\s*"
+    r"(?:[^\s=]+\s+)?"  # hostname (no = to avoid eating KV)
+    r"(?:CEF:\d+\|[^\|]*\|[^\|]*\|[^\|]*\|[^\|]*\|[^\|]*\|[^\|]*\|)?"  # CEF prefix
+    r"(.*)$",
+    re.DOTALL,
+)
 
 
 def parse_ts(value: Any) -> datetime:
@@ -66,19 +90,120 @@ def parse_kv_syslog(message: str) -> dict[str, str]:
     return out
 
 
+def strip_syslog_header(raw: str) -> str:
+    """Drop PRI / BSD or RFC3339 timestamp / hostname / CEF prefix; keep KV body."""
+    text = (raw or "").strip()
+    if "logid=" in text or "srcip=" in text or "devid=" in text:
+        # Prefer finding first Forti-ish key rather than fragile full-header match
+        for marker in ("date=", "logid=", "devname=", "devid=", "type=", "srcip="):
+            idx = text.find(marker)
+            if idx > 0:
+                return text[idx:]
+            if idx == 0:
+                return text
+    m = _SYSLOG_HEADER_RE.match(text)
+    if m and m.group(1):
+        return m.group(1).strip()
+    return text
+
+
+def _forti_action(kv: dict[str, str]) -> str:
+    raw_action = (kv.get("action") or kv.get("status") or "").strip().lower()
+    subtype = (kv.get("subtype") or "").strip().lower().replace("_", "-")
+    log_type = (kv.get("type") or "").strip().lower()
+
+    if log_type == "utm" or subtype in _UTM_SUBTYPES:
+        if subtype:
+            return subtype.replace("-", "_")
+        if raw_action in _DENY_ACTIONS:
+            return "deny"
+        if raw_action:
+            return raw_action.replace("-", "_")
+        return "utm"
+    if raw_action in _DENY_ACTIONS:
+        return "deny"
+    if raw_action in _ALLOW_ACTIONS:
+        return "allow"
+    if raw_action:
+        return raw_action.replace("-", "_")
+    if subtype:
+        return subtype.replace("-", "_")
+    return "unknown"
+
+
+def _forti_severity(kv: dict[str, str], action: str) -> str:
+    if "level" in kv:
+        return sev(kv["level"], "info")
+    if "severity" in kv:
+        return sev(kv["severity"], "info")
+    if action in {"deny"} or action in {s.replace("-", "_") for s in _UTM_SUBTYPES}:
+        if action == "deny":
+            return "high"
+        return "high"
+    if action == "allow":
+        return "info"
+    return "info"
+
+
+def _forti_timestamp(kv: dict[str, str], meta: dict[str, Any]) -> datetime:
+    if kv.get("eventtime"):
+        # Forti often sends epoch microseconds as string
+        et = kv["eventtime"]
+        try:
+            n = int(et)
+            if n > 1e14:  # nanoseconds-ish
+                n //= 1000
+            if n > 1e12:  # microseconds
+                return datetime.fromtimestamp(n / 1_000_000.0, tz=timezone.utc)
+            if n > 1e10:  # milliseconds
+                return datetime.fromtimestamp(n / 1000.0, tz=timezone.utc)
+            return datetime.fromtimestamp(n, tz=timezone.utc)
+        except ValueError:
+            return parse_ts(et)
+    if kv.get("date") and kv.get("time"):
+        return parse_ts(f"{kv['date']}T{kv['time']}")
+    return parse_ts(kv.get("time") or meta.get("timestamp"))
+
+
+def _label_clean(labels: dict[str, Any]) -> dict[str, Any]:
+    return {k: v for k, v in labels.items() if v is not None and str(v).strip() != ""}
+
+
 def normalize_firewall_syslog(
     raw: str, *, ingest_channel: str = "syslog", meta: dict[str, Any] | None = None
 ) -> NormalizedEvent:
     meta = meta or {}
-    kv = parse_kv_syslog(raw)
-    action = (kv.get("action") or kv.get("status") or "unknown").lower()
-    severity = "high" if action in {"deny", "blocked", "drop"} else "info"
-    if "severity" in kv:
-        severity = sev(kv["severity"], severity)
+    body = strip_syslog_header(raw)
+    kv = parse_kv_syslog(body)
+    action = _forti_action(kv)
+    severity = _forti_severity(kv, action)
     host = kv.get("devname") or kv.get("hostname") or meta.get("host")
-    msg = kv.get("msg") or raw
+    msg = kv.get("msg") or kv.get("attack") or body or raw
+    msg_s = msg if len(msg) < 500 else msg[:497] + "..."
+    labels = _label_clean(
+        {
+            "logid": kv.get("logid"),
+            "type": kv.get("type"),
+            "subtype": kv.get("subtype"),
+            "devid": kv.get("devid"),
+            "vd": kv.get("vd"),
+            "srcport": kv.get("srcport"),
+            "dstport": kv.get("dstport"),
+            "srcintf": kv.get("srcintf"),
+            "dstintf": kv.get("dstintf"),
+            "proto": kv.get("proto") or kv.get("service"),
+            "app": kv.get("app") or kv.get("appact") or kv.get("appcat"),
+            "policyid": kv.get("policyid"),
+            "policyname": kv.get("policyname") or kv.get("poluuid"),
+            "url": kv.get("url") or kv.get("hostname"),
+            "filename": kv.get("filename"),
+            "attack": kv.get("attack") or kv.get("attackid"),
+            "sessionid": kv.get("sessionid"),
+            "level": kv.get("level"),
+        }
+    )
     return NormalizedEvent(
-        timestamp=parse_ts(kv.get("eventtime") or kv.get("time") or meta.get("timestamp")),
+        timestamp=_forti_timestamp(kv, meta),
         source_type="firewall",
         vendor=kv.get("vendor") or "Fortinet",
         device=kv.get("devname") or "fortigate-demo",
@@ -88,14 +213,9 @@ def normalize_firewall_syslog(
         dst_ip=kv.get("dstip") or kv.get("dst"),
         action=action,
         severity=severity,
-        message=msg if len(msg) < 500 else msg[:497] + "...",
+        message=msg_s,
         raw=raw,
-        labels={
-            "srcport": kv.get("srcport"),
-            "dstport": kv.get("dstport"),
-            "proto": kv.get("proto") or kv.get("service"),
-            "policyid": kv.get("policyid"),
-        },
+        labels=labels,
         ingest_channel=ingest_channel,
     )
 
