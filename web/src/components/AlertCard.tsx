@@ -153,6 +153,11 @@ export default function AlertCard({
         <strong className="alert-card-title">{alert.title}</strong>
         <span className={`badge ${alert.severity}`}>{alert.severity}</span>
         <span className={`badge status-${alert.status}`}>{alert.status}</span>
+        {alert.mitre && <span className="badge mitre">{alert.mitre}</span>}
+        {typeof alert.evidence?.occurrences === "number" &&
+          (alert.evidence.occurrences as number) > 1 && (
+            <span className="badge">×{String(alert.evidence.occurrences)}</span>
+          )}
       </div>
       <div className="mono muted alert-card-meta">
         {new Date(alert.created_at).toLocaleString()} · {alert.rule_name}

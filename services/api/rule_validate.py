@@ -17,6 +17,7 @@ from .input_limits import (
 )
 
 RULE_ID_RE = re.compile(r"^[a-z0-9][a-z0-9_-]{1,62}$")
+MITRE_RE = re.compile(r"^T\d{4}(\.\d{3})?$", re.I)
 ALLOWED_GROUP_BY = frozenset({"user", "src_ip", "host", "action", "source_type", "event_id"})
 ALLOWED_TYPES = frozenset({"match", "threshold", "correlation"})
 ALLOWED_SEVERITIES = frozenset({"critical", "high", "medium", "low", "info"})
@@ -33,6 +34,22 @@ class RuleValidationError(ValueError):
 
 class RuleConflictError(FileExistsError):
     pass
+
+
+def _normalize_mitre_field(data: dict[str, Any]) -> str | None:
+    raw = data.get("mitre")
+    if raw is None or raw == "" or raw == []:
+        return None
+    if isinstance(raw, list):
+        parts = [str(x).strip() for x in raw if str(x).strip()]
+    else:
+        parts = [p.strip() for p in str(raw).split(",") if p.strip()]
+    cleaned: list[str] = []
+    for p in parts[:8]:
+        if not MITRE_RE.match(p):
+            raise RuleValidationError(f"mitre technique invalid: {p} (expect Txxxx or Txxxx.xxx)")
+        cleaned.append(p.upper() if p.startswith(("t", "T")) else p)
+    return ",".join(cleaned) if cleaned else None
 
 
 def validate_rule_id(rule_id: str) -> str:
@@ -94,6 +111,7 @@ def validate_rule_payload(data: dict[str, Any]) -> dict[str, Any]:
 
     description = str(data.get("description") or "").strip()[:MAX_RULE_TEXT]
     threat_brief = str(data.get("threat_brief") or "").strip()[:MAX_RULE_TEXT]
+    mitre = _normalize_mitre_field(data)
     window = max(1, min(MAX_WINDOW_MINUTES, int(data.get("window_minutes") or 10)))
     cooldown = max(1, min(MAX_COOLDOWN_MINUTES, int(data.get("cooldown_minutes") or 15)))
 
@@ -109,6 +127,8 @@ def validate_rule_payload(data: dict[str, Any]) -> dict[str, Any]:
         "window_minutes": window,
         "cooldown_minutes": cooldown,
     }
+    if mitre:
+        out["mitre"] = mitre
 
     if rtype == "correlation":
         join_on = str(data.get("join_on") or "src_ip").strip()

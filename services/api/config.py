@@ -33,6 +33,9 @@ class Settings(BaseSettings):
     vt_cache_ttl_hours: int = 24
     abuseipdb_api_key: str = ""
     otx_api_key: str = ""
+    notify_webhook_url: str = ""
+    notify_format: str = "slack"
+    notify_min_severity: str = "high"
     default_tenant_id: str = "lab"
     default_tenant_name: str = "Lab"
 
@@ -100,6 +103,12 @@ def get_settings() -> Settings:
         data["abuseipdb_api_key"] = os.environ["ABUSEIPDB_API_KEY"]
     if os.getenv("OTX_API_KEY"):
         data["otx_api_key"] = os.environ["OTX_API_KEY"]
+    if os.getenv("NOTIFY_WEBHOOK_URL"):
+        data["notify_webhook_url"] = os.environ["NOTIFY_WEBHOOK_URL"]
+    if os.getenv("NOTIFY_FORMAT"):
+        data["notify_format"] = os.environ["NOTIFY_FORMAT"]
+    if os.getenv("NOTIFY_MIN_SEVERITY"):
+        data["notify_min_severity"] = os.environ["NOTIFY_MIN_SEVERITY"]
     if os.getenv("DEFAULT_TENANT_ID"):
         data["default_tenant_id"] = os.environ["DEFAULT_TENANT_ID"]
     if os.getenv("DEFAULT_TENANT_NAME"):

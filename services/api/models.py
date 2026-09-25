@@ -87,6 +87,7 @@ class Alert(Base):
     title: Mapped[str] = mapped_column(String(512))
     description: Mapped[str] = mapped_column(Text, default="")
     status: Mapped[str] = mapped_column(String(32), default="open", index=True)
+    mitre: Mapped[str | None] = mapped_column(String(256), nullable=True, index=True)
     evidence: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), index=True

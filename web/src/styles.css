@@ -1074,6 +1074,12 @@ pre.raw {
 .badge.vt-harmless { color: var(--ok); border-color: var(--ok); }
 .badge.vt-undetected,
 .badge.vt-unknown { color: var(--text-muted); border-color: var(--border); }
+.badge.mitre {
+  color: #9ecbff;
+  border-color: #4a6fa5;
+  font-family: var(--mono, ui-monospace, monospace);
+  letter-spacing: 0.02em;
+}
 
 .audit-list {
   margin-bottom: 0.75rem;

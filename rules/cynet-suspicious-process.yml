@@ -1,0 +1,17 @@
+id: cynet-suspicious-process
+name: Cynet suspicious process
+title: Cynet suspicious / LOLBin process
+description: Cynet export with suspicious process activity (e.g. encoded PowerShell).
+threat_brief: >
+  Living-off-the-land binaries often mean post-exploitation. Review command line,
+  parent process, and user context; check for lateral movement and persistence.
+mitre: T1059.001
+type: match
+severity: high
+enabled: true
+window_minutes: 60
+cooldown_minutes: 20
+match:
+  source_type: siem_export
+  action: suspicious_process
+  labels.process: powershell.exe

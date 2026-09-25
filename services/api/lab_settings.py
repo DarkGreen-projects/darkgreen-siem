@@ -44,9 +44,13 @@ class LabState:
     vt_api_key: str = ""
     abuseipdb_api_key: str = ""
     otx_api_key: str = ""
+    notify_webhook_url: str = ""
+    notify_format: str = "slack"
+    notify_min_severity: str = "high"
     _vt_cleared: bool = False
     _abuse_cleared: bool = False
     _otx_cleared: bool = False
+    _notify_cleared: bool = False
 
 
 _lock = Lock()
@@ -63,6 +67,11 @@ def _from_settings(s: Settings) -> LabState:
         vt_api_key=(s.vt_api_key or "").strip(),
         abuseipdb_api_key=(getattr(s, "abuseipdb_api_key", "") or "").strip(),
         otx_api_key=(getattr(s, "otx_api_key", "") or "").strip(),
+        notify_webhook_url=(getattr(s, "notify_webhook_url", "") or "").strip(),
+        notify_format=(getattr(s, "notify_format", "slack") or "slack").strip().lower(),
+        notify_min_severity=(getattr(s, "notify_min_severity", "high") or "high")
+        .strip()
+        .lower(),
     )
 
 
@@ -119,6 +128,13 @@ def load_lab_settings_from_db(db: Session) -> LabState:
         if "otx_api_key" in rows:
             state.otx_api_key = rows["otx_api_key"]
             state._otx_cleared = rows["otx_api_key"] == ""
+        if "notify_webhook_url" in rows:
+            state.notify_webhook_url = rows["notify_webhook_url"]
+            state._notify_cleared = rows["notify_webhook_url"] == ""
+        if "notify_format" in rows and rows["notify_format"]:
+            state.notify_format = rows["notify_format"].strip().lower()
+        if "notify_min_severity" in rows and rows["notify_min_severity"]:
+            state.notify_min_severity = rows["notify_min_severity"].strip().lower()
         return state
 
 
@@ -144,6 +160,9 @@ def persist_lab_state(db: Session, state: LabState | None = None) -> None:
         _persist_key(db, "vt_api_key", s.vt_api_key or "")
         _persist_key(db, "abuseipdb_api_key", s.abuseipdb_api_key or "")
         _persist_key(db, "otx_api_key", s.otx_api_key or "")
+        _persist_key(db, "notify_webhook_url", s.notify_webhook_url or "")
+        _persist_key(db, "notify_format", s.notify_format or "slack")
+        _persist_key(db, "notify_min_severity", s.notify_min_severity or "high")
         db.commit()
 
 
@@ -169,6 +188,9 @@ def update_lab_state(
     vt_api_key: str | None = None,
     abuseipdb_api_key: str | None = None,
     otx_api_key: str | None = None,
+    notify_webhook_url: str | None = None,
+    notify_format: str | None = None,
+    notify_min_severity: str | None = None,
     db: Session | None = None,
 ) -> LabState:
     state = get_lab_state()
@@ -202,6 +224,22 @@ def update_lab_state(
         state.otx_api_key = _apply_key(
             state.otx_api_key, otx_api_key, cleared_attr="_otx_cleared", state=state
         )
+        state.notify_webhook_url = _apply_key(
+            state.notify_webhook_url,
+            notify_webhook_url,
+            cleared_attr="_notify_cleared",
+            state=state,
+        )
+        if notify_format is not None and notify_format.strip():
+            fmt = notify_format.strip().lower()
+            if fmt not in {"slack", "teams"}:
+                raise ValueError("notify_format must be slack or teams")
+            state.notify_format = fmt
+        if notify_min_severity is not None and notify_min_severity.strip():
+            sev = notify_min_severity.strip().lower()
+            if sev not in {"critical", "high", "medium", "low", "info"}:
+                raise ValueError("notify_min_severity invalid")
+            state.notify_min_severity = sev
     if db is not None:
         persist_lab_state(db, state)
     return state
@@ -223,4 +261,8 @@ def enrichment_keys_public(state: LabState | None = None) -> dict:
         "abuseipdb_api_key_masked": mask_secret(s.abuseipdb_api_key),
         "otx_configured": bool(s.otx_api_key),
         "otx_api_key_masked": mask_secret(s.otx_api_key),
+        "notify_webhook_configured": bool(s.notify_webhook_url),
+        "notify_webhook_url_masked": mask_secret(s.notify_webhook_url),
+        "notify_format": s.notify_format or "slack",
+        "notify_min_severity": s.notify_min_severity or "high",
     }

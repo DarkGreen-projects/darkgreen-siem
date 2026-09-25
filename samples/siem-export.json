@@ -8,9 +8,18 @@
     "User": "svc.backup",
     "SourceIP": "10.0.20.42",
     "Activity": "Malware Detected",
+    "DetectionName": "Trojan.Generic.KD",
     "Description": "Suspicious executable flagged on endpoint",
     "category": "malware",
-    "mitre": "T1204"
+    "mitre": "T1204.002",
+    "FileName": "invoice.exe",
+    "FileHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "Sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "ProcessName": "invoice.exe",
+    "ProcessPath": "C:\\Users\\svc.backup\\Downloads\\invoice.exe",
+    "CommandLine": "invoice.exe /silent",
+    "ParentProcess": "explorer.exe",
+    "SensorId": "CY-SENSOR-42"
   },
   {
     "AlertId": "CY-10055",
@@ -23,7 +32,27 @@
     "Activity": "Brute Force Suspect",
     "Description": "Multiple failed authentications correlated",
     "category": "credential_access",
-    "mitre": "T1110"
+    "mitre": ["T1110", "T1110.001"],
+    "SensorId": "CY-SENSOR-01"
+  },
+  {
+    "AlertId": "CY-10088",
+    "DetectionTime": "2026-09-09T08:38:00Z",
+    "Product": "Cynet",
+    "Severity": "critical",
+    "Hostname": "win-ws15.lab.local",
+    "User": "a.admin",
+    "SourceIP": "10.0.20.15",
+    "Activity": "Suspicious Process",
+    "DetectionName": "Living-off-the-land binary",
+    "Description": "powershell encoded command from office child process",
+    "category": "execution",
+    "MitreTechnique": "T1059.001",
+    "ProcessName": "powershell.exe",
+    "ProcessPath": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+    "CommandLine": "powershell.exe -enc JABzAD0ALgAuLgA=",
+    "ParentProcess": "WINWORD.EXE",
+    "SensorId": "CY-SENSOR-15"
   },
   {
     "id": "APP-9",

@@ -37,6 +37,19 @@ ALLOWED_MATCH_KEYS = frozenset(
         "event_id",
         "channel",
         "provider",
+        # JSONB labels (Cynet process/hash/mitre)
+        "labels.hash",
+        "labels.hash_type",
+        "labels.process",
+        "labels.process_path",
+        "labels.cmdline",
+        "labels.parent_process",
+        "labels.technique",
+        "labels.category",
+        "labels.filename",
+        "labels.sensor_id",
+        "labels.detection_name",
+        "labels.alert_id",
     }
 )
 

@@ -57,6 +57,13 @@ function initialFromRule(rule?: Rule) {
     title: String(def.title || ""),
     description: rule?.description || "",
     threatBrief: rule?.threat_brief || "",
+    mitre: (() => {
+      if (rule?.mitre) return String(rule.mitre);
+      const m = def.mitre;
+      if (typeof m === "string") return m;
+      if (Array.isArray(m)) return m.map(String).join(", ");
+      return "";
+    })(),
     type: (rule?.type === "threshold"
       ? "threshold"
       : rule?.type === "correlation"
@@ -103,6 +110,7 @@ export default function RuleEditorForm({ mode, initial, onSaved, onCancel }: Pro
   const [title, setTitle] = useState(seed.title);
   const [description, setDescription] = useState(seed.description);
   const [threatBrief, setThreatBrief] = useState(seed.threatBrief);
+  const [mitre, setMitre] = useState(seed.mitre);
   const [type, setType] = useState<"match" | "threshold" | "correlation">(seed.type);
   const [severity, setSeverity] = useState(seed.severity);
   const [enabled, setEnabled] = useState(seed.enabled);
@@ -142,6 +150,7 @@ export default function RuleEditorForm({ mode, initial, onSaved, onCancel }: Pro
       title: title.trim() || undefined,
       description: description.trim(),
       threat_brief: threatBrief.trim(),
+      mitre: mitre.trim() || null,
       type,
       severity,
       enabled,
@@ -299,7 +308,19 @@ export default function RuleEditorForm({ mode, initial, onSaved, onCancel }: Pro
             rows={3}
             value={threatBrief}
             onChange={(e) => setThreatBrief(e.target.value)}
-            placeholder="Breve spiegazione della minaccia per l’analista…"
+            placeholder="Breve spiegazione della minaccia per l'analista…"
+          />
+        </div>
+        <div>
+          <label htmlFor="rule-mitre">
+            MITRE ATT&CK{" "}
+            <InfoTip text="Technique ID, es. T1059.001 oppure lista separata da virgola." />
+          </label>
+          <input
+            id="rule-mitre"
+            value={mitre}
+            onChange={(e) => setMitre(e.target.value)}
+            placeholder="T1059.001, T1105"
           />
         </div>
       </div>

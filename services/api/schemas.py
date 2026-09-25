@@ -163,6 +163,7 @@ class AlertOut(BaseModel):
     title: str
     description: str
     status: str
+    mitre: str | None = None
     evidence: dict[str, Any]
     threat_brief: str | None = None
     comments: list[CommentOut] = Field(default_factory=list)
@@ -208,6 +209,7 @@ class RuleOut(BaseModel):
     name: str
     description: str = ""
     threat_brief: str | None = None
+    mitre: str | None = None
     severity: str = "medium"
     type: str
     enabled: bool = True
@@ -220,6 +222,7 @@ class RuleCreate(BaseModel):
     title: str | None = Field(default=None, max_length=MAX_RULE_NAME)
     description: str = Field(default="", max_length=MAX_RULE_TEXT)
     threat_brief: str = Field(default="", max_length=MAX_RULE_TEXT)
+    mitre: str | list[str] | None = None
     type: str = "match"
     severity: str = "medium"
     enabled: bool = True
@@ -247,6 +250,26 @@ class RuleCreate(BaseModel):
         if s not in ALLOWED_SEVERITIES:
             raise ValueError(f"severity must be one of: {', '.join(sorted(ALLOWED_SEVERITIES))}")
         return s
+
+
+class DryRunRequest(BaseModel):
+    events: list[Any] = Field(default_factory=list, max_length=100)
+    rule_ids: list[str] | None = None
+
+
+class DryRunHit(BaseModel):
+    rule_id: str
+    rule_name: str = ""
+    severity: str = "medium"
+    title: str = ""
+    mitre: str | None = None
+    would_create: bool = True
+    evidence: dict[str, Any] = Field(default_factory=dict)
+
+
+class DryRunResponse(BaseModel):
+    matched: list[DryRunHit] = Field(default_factory=list)
+    events_normalized: int = 0
 
 
 class RuleEnabledUpdate(BaseModel):
@@ -295,6 +318,10 @@ class SetupOut(BaseModel):
     abuseipdb_api_key_masked: str | None = None
     otx_configured: bool = False
     otx_api_key_masked: str | None = None
+    notify_webhook_configured: bool = False
+    notify_webhook_url_masked: str | None = None
+    notify_format: str = "slack"
+    notify_min_severity: str = "high"
 
 
 class SetupUpdate(BaseModel):
@@ -305,6 +332,9 @@ class SetupUpdate(BaseModel):
     vt_api_key: str | None = Field(default=None, max_length=256)
     abuseipdb_api_key: str | None = Field(default=None, max_length=256)
     otx_api_key: str | None = Field(default=None, max_length=256)
+    notify_webhook_url: str | None = Field(default=None, max_length=2048)
+    notify_format: str | None = Field(default=None, max_length=16)
+    notify_min_severity: str | None = Field(default=None, max_length=16)
 
 
 class ProviderEnrichOut(BaseModel):

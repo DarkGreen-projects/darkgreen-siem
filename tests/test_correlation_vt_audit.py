@@ -96,7 +96,7 @@ def test_correlation_joins_fail_then_success():
             {"match": {"source_type": "windows", "action": "login_success"}, "min_count": 1},
         ],
     }
-    alert = evaluate_correlation_rule(db, rule)
+    alert, _ = evaluate_correlation_rule(db, rule)
     assert alert is not None
     assert alert.evidence["join_key"] == "203.0.113.45"
 

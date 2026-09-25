@@ -10,6 +10,9 @@ export default function SetupPanel() {
   const [vtKey, setVtKey] = useState("");
   const [abuseKey, setAbuseKey] = useState("");
   const [otxKey, setOtxKey] = useState("");
+  const [notifyUrl, setNotifyUrl] = useState("");
+  const [notifyFormat, setNotifyFormat] = useState("slack");
+  const [notifyMinSev, setNotifyMinSev] = useState("high");
   const [error, setError] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -26,6 +29,9 @@ export default function SetupPanel() {
         setVtKey("");
         setAbuseKey("");
         setOtxKey("");
+        setNotifyUrl("");
+        setNotifyFormat(s.notify_format || "slack");
+        setNotifyMinSev(s.notify_min_severity || "high");
         setError(null);
       })
       .catch((e: Error) => setError(e.message));
@@ -43,15 +49,19 @@ export default function SetupPanel() {
         health_stale_minutes: staleMin,
         health_silent_minutes: silentMin,
         silence_alerts_enabled: silenceAlerts,
+        notify_format: notifyFormat,
+        notify_min_severity: notifyMinSev,
       };
       if (vtKey.trim()) payload.vt_api_key = vtKey.trim();
       if (abuseKey.trim()) payload.abuseipdb_api_key = abuseKey.trim();
       if (otxKey.trim()) payload.otx_api_key = otxKey.trim();
+      if (notifyUrl.trim()) payload.notify_webhook_url = notifyUrl.trim();
       const s = await api.updateSetup(payload);
       setSetup(s);
       setVtKey("");
       setAbuseKey("");
       setOtxKey("");
+      setNotifyUrl("");
       setMsg("Impostazioni lab salvate (sessione API).");
     } catch (e) {
       setError((e as Error).message);
@@ -60,7 +70,7 @@ export default function SetupPanel() {
     }
   };
 
-  const clearKey = async (which: "vt" | "abuseipdb" | "otx") => {
+  const clearKey = async (which: "vt" | "abuseipdb" | "otx" | "notify") => {
     setBusy(true);
     setMsg(null);
     try {
@@ -68,9 +78,10 @@ export default function SetupPanel() {
       if (which === "vt") payload.vt_api_key = "CLEAR";
       if (which === "abuseipdb") payload.abuseipdb_api_key = "CLEAR";
       if (which === "otx") payload.otx_api_key = "CLEAR";
+      if (which === "notify") payload.notify_webhook_url = "CLEAR";
       const s = await api.updateSetup(payload);
       setSetup(s);
-      setMsg(`Key ${which} rimossa dalla sessione.`);
+      setMsg(which === "notify" ? "Webhook notifiche rimosso." : `Key ${which} rimossa dalla sessione.`);
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -220,6 +231,58 @@ export default function SetupPanel() {
                 Rimuovi
               </button>
             ) : null}
+          </label>
+        </div>
+
+        <h3 className="muted" style={{ marginTop: "1.25rem" }}>
+          Notifiche (Slack / Teams)
+        </h3>
+        <p className="muted" style={{ fontSize: "0.85rem" }}>
+          Webhook HTTPS inviato quando si apre un alert con severity &gt;= soglia (default high).
+          Solo al primo create, non a ogni merge/dedup. Env:{" "}
+          <span className="mono">NOTIFY_WEBHOOK_URL</span>, <span className="mono">NOTIFY_FORMAT</span>.
+        </p>
+        <div className="setup-grid">
+          <label style={{ gridColumn: "1 / -1" }}>
+            Webhook URL{" "}
+            <span className="muted mono">
+              {setup?.notify_webhook_configured
+                ? setup.notify_webhook_url_masked || "configurato"
+                : "non configurato"}
+            </span>
+            <input
+              type="password"
+              autoComplete="off"
+              value={notifyUrl}
+              onChange={(e) => setNotifyUrl(e.target.value)}
+              placeholder="https://hooks.slack.com/... oppure Teams webhook"
+            />
+            {setup?.notify_webhook_configured ? (
+              <button
+                type="button"
+                className="ghost"
+                disabled={busy}
+                onClick={() => void clearKey("notify")}
+              >
+                Rimuovi
+              </button>
+            ) : null}
+          </label>
+          <label>
+            Formato
+            <select value={notifyFormat} onChange={(e) => setNotifyFormat(e.target.value)}>
+              <option value="slack">Slack Incoming Webhook</option>
+              <option value="teams">Teams MessageCard</option>
+            </select>
+          </label>
+          <label>
+            Severity minima
+            <select value={notifyMinSev} onChange={(e) => setNotifyMinSev(e.target.value)}>
+              <option value="critical">critical</option>
+              <option value="high">high</option>
+              <option value="medium">medium</option>
+              <option value="low">low</option>
+            </select>
           </label>
         </div>
 

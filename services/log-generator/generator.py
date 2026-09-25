@@ -159,15 +159,50 @@ def gen_cloud() -> dict:
 
 
 def gen_siem() -> dict:
-    return {
+    kind = random.choice(["malware", "process", "generic"])
+    base = {
         "AlertId": f"CY-{random.randint(20000, 29999)}",
         "DetectionTime": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
         "Product": "Cynet",
-        "Severity": random.choice(["low", "medium", "high"]),
         "Hostname": random.choice(HOSTS),
         "User": random.choice(USERS),
         "SourceIP": random.choice(IPS_INT),
-        "Activity": random.choice(["Suspicious Connection", "Policy Violation", "Malware Detected"]),
+        "SensorId": f"CY-SENSOR-{random.randint(1, 40)}",
+    }
+    if kind == "malware":
+        return {
+            **base,
+            "Severity": "high",
+            "Activity": "Malware Detected",
+            "DetectionName": "Trojan.Generic.KD",
+            "Description": "Generated Cynet malware with hash",
+            "category": "malware",
+            "mitre": "T1204.002",
+            "FileName": "dropper.exe",
+            "Sha256": "a" * 64,
+            "ProcessName": "dropper.exe",
+            "ProcessPath": "C:\\Temp\\dropper.exe",
+            "CommandLine": "dropper.exe",
+            "ParentProcess": "explorer.exe",
+        }
+    if kind == "process":
+        return {
+            **base,
+            "Severity": "critical",
+            "Activity": "Suspicious Process",
+            "DetectionName": "Encoded PowerShell",
+            "Description": "Generated Cynet suspicious process",
+            "category": "execution",
+            "MitreTechnique": "T1059.001",
+            "ProcessName": "powershell.exe",
+            "ProcessPath": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+            "CommandLine": "powershell.exe -enc JABzAD0ALgAuLgA=",
+            "ParentProcess": "WINWORD.EXE",
+        }
+    return {
+        **base,
+        "Severity": random.choice(["low", "medium", "high"]),
+        "Activity": random.choice(["Suspicious Connection", "Policy Violation"]),
         "Description": "Generated SIEM export event",
         "category": "demo",
     }

@@ -30,6 +30,8 @@ from .rules_engine import (
     RuleConflictError,
     RuleValidationError,
     delete_rule,
+    dry_run_rules,
+    event_from_normalized,
     load_rules,
     run_rules,
     save_rule,
@@ -50,6 +52,9 @@ from .schemas import (
     AuditOut,
     CommentCreate,
     CommentOut,
+    DryRunRequest,
+    DryRunResponse,
+    DryRunHit,
     EventOut,
     IngestRequest,
     IngestResponse,
@@ -192,6 +197,7 @@ def alert_to_out(
         threat_brief=brief,
         comments=[CommentOut.model_validate(c) for c in comment_rows],
         audit=[AuditOut.model_validate(a) for a in audit_rows],
+        mitre=getattr(alert, "mitre", None) or evidence.get("mitre"),
         created_at=alert.created_at,
         acked_at=alert.acked_at,
     )
@@ -636,31 +642,22 @@ def api_sources(
 
 @app.get("/api/rules", response_model=list[RuleOut])
 def api_rules(principal: AuthPrincipal = Depends(require_perm("search"))) -> list[RuleOut]:
-    out: list[RuleOut] = []
-    for rule in load_rules(settings.rules_dir):
-        brief = (rule.get("threat_brief") or "").strip() or None
-        out.append(
-            RuleOut(
-                id=rule.get("id") or "unknown",
-                name=rule.get("name") or rule.get("id") or "unnamed",
-                description=rule.get("description") or "",
-                threat_brief=brief,
-                severity=rule.get("severity") or "medium",
-                type=rule.get("type") or "match",
-                enabled=bool(rule.get("enabled", True)),
-                definition={k: v for k, v in rule.items() if not str(k).startswith("_")},
-            )
-        )
-    return out
+    return [_rule_to_out(rule) for rule in load_rules(settings.rules_dir)]
 
 
 def _rule_to_out(rule: dict[str, Any]) -> RuleOut:
     brief = (rule.get("threat_brief") or "").strip() or None
+    mitre = rule.get("mitre")
+    if isinstance(mitre, list):
+        mitre = ",".join(str(x) for x in mitre) if mitre else None
+    elif mitre is not None:
+        mitre = str(mitre).strip() or None
     return RuleOut(
         id=rule.get("id") or "unknown",
         name=rule.get("name") or rule.get("id") or "unnamed",
         description=rule.get("description") or "",
         threat_brief=brief,
+        mitre=mitre,
         severity=rule.get("severity") or "medium",
         type=rule.get("type") or "match",
         enabled=bool(rule.get("enabled", True)),
@@ -783,6 +780,9 @@ def api_patch_setup(
             vt_api_key=body.vt_api_key,
             abuseipdb_api_key=body.abuseipdb_api_key,
             otx_api_key=body.otx_api_key,
+            notify_webhook_url=body.notify_webhook_url,
+            notify_format=body.notify_format,
+            notify_min_severity=body.notify_min_severity,
             db=db,
         )
     except ValueError as exc:
@@ -807,6 +807,7 @@ def api_purge(
 @app.get("/api/alerts", response_model=list[AlertOut])
 def api_alerts(
     status: str | None = None,
+    mitre: str | None = Query(None, max_length=64),
     limit: int = Query(50, ge=1, le=200),
     db: Session = Depends(get_db),
     principal: AuthPrincipal = Depends(require_perm("search")),
@@ -825,6 +826,8 @@ def api_alerts(
     )
     if status:
         stmt = stmt.where(Alert.status == status)
+    if mitre and mitre.strip():
+        stmt = stmt.where(Alert.mitre.ilike(f"%{mitre.strip()}%"))
     return [alert_to_out(a, briefs, db=db) for a in db.scalars(stmt).all()]
 
 
@@ -967,3 +970,38 @@ def api_run_rules(
         for a in created
         if a.tenant_id == principal.tenant_id
     ]
+
+
+@app.post("/api/rules/dry-run", response_model=DryRunResponse)
+def api_rules_dry_run(
+    body: DryRunRequest,
+    db: Session = Depends(get_db),
+    principal: AuthPrincipal = Depends(require_perm("rules_write")),
+) -> DryRunResponse:
+    if not body.events:
+        raise HTTPException(status_code=400, detail="events required")
+    try:
+        hits, n_norm = dry_run_rules(
+            db,
+            settings.rules_dir,
+            body.events,
+            rule_ids=body.rule_ids,
+            tenant_id=principal.tenant_id,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return DryRunResponse(
+        matched=[
+            DryRunHit(
+                rule_id=h.get("rule_id") or "",
+                rule_name=h.get("rule_name") or "",
+                would_create=bool(h.get("would_create")),
+                evidence=h.get("evidence") or {},
+                mitre=h.get("mitre"),
+                severity=h.get("severity") or "medium",
+                title=h.get("title") or "",
+            )
+            for h in hits
+        ],
+        events_normalized=n_norm,
+    )

@@ -44,6 +44,7 @@ export type Alert = {
   status: AlertStatus | string;
   evidence: Record<string, unknown>;
   threat_brief: string | null;
+  mitre?: string | null;
   comments: AlertComment[];
   audit?: AlertAuditEntry[];
   created_at: string;
@@ -86,6 +87,7 @@ export type Rule = {
   name: string;
   description: string;
   threat_brief: string | null;
+  mitre?: string | null;
   severity: string;
   type: string;
   enabled: boolean;
@@ -98,6 +100,7 @@ export type RuleCreatePayload = {
   title?: string;
   description?: string;
   threat_brief?: string;
+  mitre?: string | string[] | null;
   type: "match" | "threshold" | string;
   severity: string;
   enabled?: boolean;
@@ -161,6 +164,25 @@ export type LabSetup = {
   abuseipdb_api_key_masked?: string | null;
   otx_configured?: boolean;
   otx_api_key_masked?: string | null;
+  notify_webhook_configured?: boolean;
+  notify_webhook_url_masked?: string | null;
+  notify_format?: string;
+  notify_min_severity?: string;
+};
+
+export type DryRunHit = {
+  rule_id: string;
+  rule_name: string;
+  severity: string;
+  title: string;
+  mitre?: string | null;
+  would_create: boolean;
+  evidence: Record<string, unknown>;
+};
+
+export type DryRunResponse = {
+  matched: DryRunHit[];
+  events_normalized: number;
 };
 
 export type PurgeResult = {
@@ -356,8 +378,13 @@ export const api = {
     if (!res.ok) await ruleMutationError(res);
     return res.json() as Promise<Rule>;
   },
-  alerts: (status?: string) =>
-    getJson<Alert[]>(status ? `/api/alerts?status=${encodeURIComponent(status)}` : "/api/alerts"),
+  alerts: (opts?: { status?: string; mitre?: string }) => {
+    const sp = new URLSearchParams();
+    if (opts?.status) sp.set("status", opts.status);
+    if (opts?.mitre) sp.set("mitre", opts.mitre);
+    const q = sp.toString();
+    return getJson<Alert[]>(q ? `/api/alerts?${q}` : "/api/alerts");
+  },
   getAlert: (id: number) => getJson<Alert>(`/api/alerts/${id}`),
   search: (params: {
     q?: string;
@@ -399,6 +426,14 @@ export const api = {
     const res = await fetch("/api/rules/run", { method: "POST", headers: authHeaders() });
     return handleRes<Alert[]>(res);
   },
+  dryRunRules: async (events: unknown[], ruleIds?: string[]) => {
+    const res = await fetch("/api/rules/dry-run", {
+      method: "POST",
+      headers: authHeaders({ "Content-Type": "application/json" }),
+      body: JSON.stringify({ events, rule_ids: ruleIds ?? null }),
+    });
+    return handleRes<DryRunResponse>(res);
+  },
   setup: () => getJson<LabSetup>("/api/setup"),
   updateSetup: async (payload: {
     retention_days?: number;
@@ -408,6 +443,9 @@ export const api = {
     vt_api_key?: string;
     abuseipdb_api_key?: string;
     otx_api_key?: string;
+    notify_webhook_url?: string;
+    notify_format?: string;
+    notify_min_severity?: string;
   }) => {
     const res = await fetch("/api/setup", {
       method: "PATCH",

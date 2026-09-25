@@ -1,9 +1,38 @@
 import { useEffect, useState } from "react";
-import { api, type Alert, type Rule } from "../api";
+import { api, type Alert, type DryRunHit, type Rule } from "../api";
 import AlertCard from "./AlertCard";
 import RuleEditorForm from "./RuleEditorForm";
 
 type EditorState = { mode: "create" } | { mode: "edit"; rule: Rule } | null;
+
+const DRY_RUN_PLACEHOLDER = `[
+  {
+    "Product": "Cynet",
+    "Activity": "Malware Detected",
+    "Severity": "high",
+    "Hostname": "win-ws42.lab.local",
+    "category": "malware",
+    "Sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "ProcessName": "invoice.exe"
+  }
+]`;
+
+function parseDryRunInput(text: string): unknown[] {
+  const trimmed = text.trim();
+  if (!trimmed) return [];
+  if (trimmed.startsWith("[")) {
+    const parsed = JSON.parse(trimmed) as unknown;
+    if (!Array.isArray(parsed)) throw new Error("JSON deve essere un array di eventi");
+    return parsed;
+  }
+  if (trimmed.startsWith("{")) {
+    return [JSON.parse(trimmed)];
+  }
+  return trimmed
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter(Boolean);
+}
 
 export default function DetectionsPanel({ readOnly = false }: { readOnly?: boolean }) {
   const [rules, setRules] = useState<Rule[]>([]);
@@ -12,9 +41,15 @@ export default function DetectionsPanel({ readOnly = false }: { readOnly?: boole
   const [busy, setBusy] = useState(false);
   const [editor, setEditor] = useState<EditorState>(null);
   const [rowBusy, setRowBusy] = useState<string | null>(null);
+  const [mitreFilter, setMitreFilter] = useState("");
+  const [dryRunText, setDryRunText] = useState(DRY_RUN_PLACEHOLDER);
+  const [dryHits, setDryHits] = useState<DryRunHit[] | null>(null);
+  const [dryNorm, setDryNorm] = useState(0);
+  const [dryBusy, setDryBusy] = useState(false);
 
   const refresh = async () => {
-    const [r, a] = await Promise.all([api.rules(), api.alerts()]);
+    const opts = mitreFilter.trim() ? { mitre: mitreFilter.trim() } : undefined;
+    const [r, a] = await Promise.all([api.rules(), api.alerts(opts)]);
     setRules(r);
     setAlerts(a);
   };
@@ -29,7 +64,7 @@ export default function DetectionsPanel({ readOnly = false }: { readOnly?: boole
       alive = false;
       clearInterval(id);
     };
-  }, []);
+  }, [mitreFilter]);
 
   const runNow = async () => {
     setBusy(true);
@@ -41,6 +76,23 @@ export default function DetectionsPanel({ readOnly = false }: { readOnly?: boole
       setError((e as Error).message);
     } finally {
       setBusy(false);
+    }
+  };
+
+  const runDryRun = async () => {
+    setDryBusy(true);
+    setError(null);
+    setDryHits(null);
+    try {
+      const events = parseDryRunInput(dryRunText);
+      if (!events.length) throw new Error("Inserisci almeno un evento");
+      const res = await api.dryRunRules(events);
+      setDryHits(res.matched);
+      setDryNorm(res.events_normalized);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setDryBusy(false);
     }
   };
 
@@ -64,7 +116,7 @@ export default function DetectionsPanel({ readOnly = false }: { readOnly?: boole
   };
 
   const deleteRule = async (rule: Rule) => {
-    if (!window.confirm(`Eliminare la regola “${rule.id}”? Rimuove il file YAML.`)) return;
+    if (!window.confirm(`Eliminare la regola "${rule.id}"? Rimuove il file YAML.`)) return;
     setRowBusy(rule.id);
     setError(null);
     try {
@@ -99,8 +151,8 @@ export default function DetectionsPanel({ readOnly = false }: { readOnly?: boole
           )}
         </div>
         <p className="muted" style={{ marginTop: 0 }}>
-          Rivaluta le regole YAML sugli eventi recenti (come il loop in background). Crea nuovi
-          alert quando match/threshold scattano e il cooldown lo consente.
+          Rivaluta le regole YAML sugli eventi recenti (come il loop in background). Stessa
+          rule+entity nella finestra di cooldown vengono merge (count/occurrences), non nuovi alert.
         </p>
         {error && <p className="error">{error}</p>}
 
@@ -113,6 +165,7 @@ export default function DetectionsPanel({ readOnly = false }: { readOnly?: boole
                     {r.name}{" "}
                     <span className={`badge ${r.severity}`}>{r.severity}</span>{" "}
                     <span className="badge">{r.type}</span>{" "}
+                    {r.mitre && <span className="badge mitre">{r.mitre}</span>}{" "}
                     <span className={`badge ${r.enabled ? "health-ok" : "health-silent"}`}>
                       {r.enabled ? "abilitata" : "disabilitata"}
                     </span>
@@ -162,17 +215,71 @@ export default function DetectionsPanel({ readOnly = false }: { readOnly?: boole
             </div>
           ))}
         </div>
+
+        {!readOnly && (
+          <div className="dry-run-block" style={{ marginTop: "1.25rem" }}>
+            <h4 style={{ marginTop: 0 }}>Dry-run</h4>
+            <p className="muted" style={{ fontSize: "0.85rem" }}>
+              Incolla un JSON array, un singolo oggetto, o linee syslog. Nessun alert scritto sul DB.
+            </p>
+            <textarea
+              rows={8}
+              className="mono"
+              value={dryRunText}
+              onChange={(e) => setDryRunText(e.target.value)}
+              style={{ width: "100%", fontSize: "0.8rem" }}
+            />
+            <button
+              type="button"
+              className="ghost"
+              style={{ marginTop: "0.5rem" }}
+              disabled={dryBusy}
+              onClick={() => void runDryRun()}
+            >
+              {dryBusy ? "Valutazione…" : "Valuta regole"}
+            </button>
+            {dryHits && (
+              <div style={{ marginTop: "0.75rem" }}>
+                <p className="muted mono" style={{ margin: "0 0 0.5rem" }}>
+                  eventi normalizzati: {dryNorm} · match: {dryHits.length}
+                </p>
+                {dryHits.length === 0 && <p className="muted">Nessuna regola ha matchato.</p>}
+                {dryHits.map((h) => (
+                  <div className="list-item" key={`${h.rule_id}-${h.title}`}>
+                    <strong>{h.title || h.rule_name}</strong>{" "}
+                    <span className={`badge ${h.severity}`}>{h.severity}</span>{" "}
+                    {h.mitre && <span className="badge mitre">{h.mitre}</span>}
+                    <p className="mono muted" style={{ margin: "0.25rem 0 0" }}>
+                      {h.rule_id}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       <div className="panel">
-        <h3 style={{ marginTop: 0 }}>Alert</h3>
+        <div className="row" style={{ alignItems: "center", marginBottom: "0.75rem" }}>
+          <h3 style={{ margin: 0, flex: 1 }}>Alert</h3>
+          <label className="muted" style={{ fontSize: "0.85rem" }}>
+            MITRE{" "}
+            <input
+              value={mitreFilter}
+              onChange={(e) => setMitreFilter(e.target.value)}
+              placeholder="T1059"
+              style={{ width: "7rem", marginLeft: "0.25rem" }}
+            />
+          </label>
+        </div>
         <div className="list-block">
           {alerts.map((a) => (
             <AlertCard key={a.id} alert={a} onUpdated={onAlertUpdated} />
           ))}
           {alerts.length === 0 && (
             <p className="muted">
-              Nessun alert — dati seed oppure clicca “Esegui regole ora”.
+              Nessun alert - dati seed oppure clicca "Esegui regole ora".
             </p>
           )}
         </div>

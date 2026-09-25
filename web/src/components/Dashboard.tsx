@@ -33,6 +33,7 @@ export default function Dashboard() {
   const [stats, setStats] = useState<Stats | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<AlertStatus | "all">("all");
+  const [mitreFilter, setMitreFilter] = useState("");
   const [filteredAlerts, setFilteredAlerts] = useState<Alert[] | null>(null);
   const [exporting, setExporting] = useState(false);
 
@@ -57,14 +58,18 @@ export default function Dashboard() {
   }, [range]);
 
   useEffect(() => {
-    if (statusFilter === "all") {
+    const mitre = mitreFilter.trim();
+    if (statusFilter === "all" && !mitre) {
       setFilteredAlerts(null);
       return;
     }
     let alive = true;
     const load = () =>
       api
-        .alerts(statusFilter)
+        .alerts({
+          status: statusFilter === "all" ? undefined : statusFilter,
+          mitre: mitre || undefined,
+        })
         .then((list) => {
           if (alive) setFilteredAlerts(list);
         })
@@ -77,7 +82,7 @@ export default function Dashboard() {
       alive = false;
       clearInterval(id);
     };
-  }, [statusFilter]);
+  }, [statusFilter, mitreFilter]);
 
   const sourcesInChart = useMemo(() => {
     if (!stats) return SOURCE_ORDER;
@@ -99,7 +104,9 @@ export default function Dashboard() {
   const byStatus = stats.by_alert_status || {};
   const openCount = byStatus.open ?? stats.open_alerts;
   const alertsShown =
-    statusFilter === "all" ? stats.recent_alerts : filteredAlerts ?? [];
+    statusFilter === "all" && !mitreFilter.trim()
+      ? stats.recent_alerts
+      : filteredAlerts ?? [];
 
   const patchAlert = (updated: Alert) => {
     setStats((prev) =>
@@ -167,10 +174,19 @@ export default function Dashboard() {
                 onClick={() => setStatusFilter(f.id)}
               >
                 {f.label}
-                <span className="count">{count}</span>
+                <span className="muted"> {count}</span>
               </button>
             );
           })}
+          <label className="muted" style={{ fontSize: "0.85rem", marginLeft: "0.5rem" }}>
+            MITRE{" "}
+            <input
+              value={mitreFilter}
+              onChange={(e) => setMitreFilter(e.target.value)}
+              placeholder="T1059"
+              style={{ width: "7rem", marginLeft: "0.25rem" }}
+            />
+          </label>
         </div>
       </div>
 

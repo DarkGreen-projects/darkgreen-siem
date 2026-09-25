@@ -129,6 +129,7 @@ def test_correlation_enrich_uses_cache_keys():
         "services.api.rules_engine.keys_matching_enrich",
         return_value={"203.0.113.45"},
     ):
-        alert = evaluate_correlation_rule(db, rule)
+        alert, _ = evaluate_correlation_rule(db, rule)
+        alert = alert[0] if isinstance(alert, tuple) else alert
     assert alert is not None
     assert alert.evidence["join_key"] == "203.0.113.45"

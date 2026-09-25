@@ -16,14 +16,14 @@ Parte del portfolio [DarkGreen Projects](https://github.com/DarkGreen-projects).
 | Area | Dettaglio |
 |------|-----------|
 | **Ingest** | HTTP `/api/ingest`, syslog UDP `5140`, seed da `samples/`, traffico continuo via `log-generator` |
-| **Normalizzazione** | FortiGate syslog KV completo (`firewall`) + windows / cloud_auth / siem_export (Cynet thin) |
+| **Normalizzazione** | FortiGate syslog KV + windows / cloud_auth / **siem_export Cynet** (process, hash, MITRE labels) |
 | **Auth / RBAC** | Soft multi-tenant + ruoli admin/analyst/viewer/ingest |
 | **TLS / HA** | Overlay Compose TLS + 2 API dietro nginx (vedi README) |
 | **Ricerca** | Query `field:value` + free-text; **ricerche predefinite** (login_failed, deny, audit_cleared, malware…) |
-| **Dashboard** | EPS, timeline per sorgente, health strip, filtri stato alert, **export CSV** |
-| **Setup lab** | Retention eventi, soglie silence, purge manuale/automatico |
-| **Detection** | Regole YAML match / threshold / **correlation**; CRUD da UI |
-| **Alert workflow** | Stati open / ack / in corso / chiuso + commenti + **audit trail** (chi/quando) |
+| **Dashboard** | EPS, timeline per sorgente, health strip, filtri stato/MITRE, **export CSV** |
+| **Setup lab** | Retention, silence, purge, **enrichment keys**, **webhook Slack/Teams** |
+| **Detection** | YAML match / threshold / correlation; CRUD UI; **dry-run** bench; match `labels.*` |
+| **Alert workflow** | Stati + commenti + audit; **MITRE** su regole/alert; **dedup/merge** rule+entity in cooldown |
 | **Sorgenti** | Canali live + onboarding agent; alert ops se silenziose; [guida collectors](docs/collectors-windows-syslog.md) |
 | **VirusTotal / TI** | Key in Setup (VT, AbuseIPDB, OTX) + verdict in cache sulle card; correlazione enrich |
 
@@ -107,6 +107,25 @@ Imposta le API key in **Setup → Enrichment API** (o env Compose). Provider sup
 | `VT_CACHE_TTL_HOURS` | TTL cache (default 24) |
 
 Senza key restano i link GUI. Con key: `GET /api/enrich` (multi) e `GET /api/enrich/vt`. Le regole `correlation` possono avere uno step `enrich` (vedi `rules/spray-then-malicious-ip.yml`).
+
+### Notifiche Slack / Teams
+
+Webhook HTTPS su alert **aperti** con severity >= soglia (default `high`). Solo al primo create, non a ogni merge.
+
+| Env / Setup | Default | Ruolo |
+|-------------|---------|--------|
+| `NOTIFY_WEBHOOK_URL` | (vuoto) | Incoming Webhook URL |
+| `NOTIFY_FORMAT` | `slack` | `slack` o `teams` |
+| `NOTIFY_MIN_SEVERITY` | `high` | Soglia minima |
+
+Configurabile anche da **Setup → Notifiche**.
+
+### Cynet / siem_export, dry-run, MITRE, dedup
+
+- **Cynet**: `normalize_siem_export` mappa process/hash/MITRE in `labels.*`; regole seed `cynet-malware-hash.yml`, `cynet-suspicious-process.yml`. Match YAML supporta `labels.hash`, `labels.process`, ecc.
+- **Dry-run**: `POST /api/rules/dry-run` con array JSON o linee syslog; UI Detection → pannello Dry-run (nessuna scrittura alert).
+- **MITRE**: campo `mitre` su YAML/regole; colonna `alerts.mitre`; badge e filtro `?mitre=` su Dashboard/Detection.
+- **Dedup**: stessa `rule_id` + entity (`src_ip`/`host`/`user` o join_key) entro `cooldown_minutes` → merge (`evidence.occurrences`), non nuovo alert.
 
 ### Collectors Windows / syslog
 

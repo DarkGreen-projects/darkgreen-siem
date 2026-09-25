@@ -35,7 +35,7 @@ flowchart LR
 1. **firewall** - FortiGate syslog KV (PRI/header strip, traffic + UTM virus/IPS, labels: logid, type/subtype, intf, policy, url, attack, ...)  
 2. **windows** - Windows Event JSON  
 3. **cloud_auth** - auth in stile Entra/Okta  
-4. **siem_export** - export EDR/SIEM JSON (es. shape Cynet, thin)
+4. **siem_export** - export EDR/SIEM JSON (shape Cynet): `Activity`→action, process/hash/MITRE in `labels` (`process`, `hash`, `technique`, …)
 
 ## Multi-tenant e RBAC
 
@@ -68,9 +68,13 @@ Linguaggio query demo: token `field:value` combinati con free-text opzionale (`A
 
 Regole YAML sotto `rules/`:
 
-- `type: match` — qualsiasi evento recente che soddisfa i filtri sui campi  
-- `type: threshold` — conteggio ≥ N raggruppato per un campo in una finestra temporale  
-- `type: correlation` — due (o più) step di match uniti su `join_on` (es. spray + login_success)
+- `type: match` - qualsiasi evento recente che soddisfa i filtri sui campi (anche `labels.<key>` su JSONB)
+- `type: threshold` - conteggio >= N raggruppato per un campo in una finestra temporale
+- `type: correlation` - due (o piu) step di match uniti su `join_on` (es. spray + login_success)
+- `mitre` - stringa o lista technique ID (persistita su alert)
+- **Dedup/merge**: stessa rule + entity key entro `cooldown_minutes` aggiorna `evidence.occurrences` invece di creare un nuovo alert
+- **Dry-run**: `POST /api/rules/dry-run` valuta in memoria senza scrivere alert
+- **Notify**: webhook Slack/Teams su create di alert critical/high (Setup / env)
 
 ## Collectors
 

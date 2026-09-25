@@ -64,6 +64,7 @@ def alerts_to_csv(alerts: list[AlertLike]) -> str:
             "rule_name",
             "severity",
             "title",
+            "mitre",
             "src_ip",
             "dst_ip",
             "user",
@@ -74,6 +75,7 @@ def alerts_to_csv(alerts: list[AlertLike]) -> str:
     for a in alerts:
         sample = _sample(dict(a.evidence or {}))
         created = a.created_at.isoformat() if getattr(a.created_at, "isoformat", None) else (a.created_at or "")
+        mitre = getattr(a, "mitre", None) or (a.evidence or {}).get("mitre") or ""
         writer.writerow(
             [
                 a.id,
@@ -83,6 +85,7 @@ def alerts_to_csv(alerts: list[AlertLike]) -> str:
                 a.rule_name,
                 a.severity,
                 a.title,
+                mitre,
                 sample.get("src_ip") or "",
                 sample.get("dst_ip") or "",
                 sample.get("user") or "",

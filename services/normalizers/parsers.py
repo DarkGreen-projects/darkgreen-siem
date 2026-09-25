@@ -321,14 +321,17 @@ def normalize_cloud_auth(
 def normalize_siem_export(
     payload: dict[str, Any], *, ingest_channel: str = "http", raw: str | None = None
 ) -> NormalizedEvent:
-    # Cynet / generic SIEM export shape
+    """Cynet / EDR export shape with process, hash, and MITRE labels."""
     action = (
         payload.get("action")
         or payload.get("Activity")
+        or payload.get("DetectionName")
+        or payload.get("AlertName")
         or payload.get("event_type")
         or "alert"
     )
     action = str(action).lower().replace(" ", "_")
+
     severity = sev(
         payload.get("severity") or payload.get("Severity") or payload.get("risk"),
         "medium",
@@ -338,8 +341,69 @@ def normalize_siem_export(
         or payload.get("Description")
         or payload.get("title")
         or payload.get("AlertName")
+        or payload.get("DetectionName")
         or "SIEM export event"
     )
+
+    # MITRE: string, list, or MitreTechnique
+    mitre_raw = (
+        payload.get("mitre")
+        or payload.get("MitreTechnique")
+        or payload.get("technique")
+        or payload.get("Techniques")
+    )
+    technique = None
+    if isinstance(mitre_raw, list) and mitre_raw:
+        technique = str(mitre_raw[0]).strip()
+    elif mitre_raw is not None:
+        technique = str(mitre_raw).strip() or None
+
+    file_hash = (
+        payload.get("FileHash")
+        or payload.get("Sha256")
+        or payload.get("sha256")
+        or payload.get("Md5")
+        or payload.get("md5")
+        or payload.get("hash")
+    )
+    hash_type = None
+    if file_hash:
+        h = str(file_hash).strip()
+        if payload.get("Sha256") or payload.get("sha256") or len(h) == 64:
+            hash_type = "sha256"
+        elif payload.get("Md5") or payload.get("md5") or len(h) == 32:
+            hash_type = "md5"
+        else:
+            hash_type = "unknown"
+        file_hash = h
+
+    process = payload.get("ProcessName") or payload.get("process") or payload.get("Image")
+    process_path = (
+        payload.get("ProcessPath")
+        or payload.get("ImagePath")
+        or payload.get("FilePath")
+        or payload.get("path")
+    )
+    cmdline = payload.get("CommandLine") or payload.get("cmdline") or payload.get("Cmdline")
+    parent = payload.get("ParentProcess") or payload.get("ParentImage") or payload.get("parent")
+
+    labels = {
+        "alert_id": str(payload.get("AlertId") or payload.get("id") or ""),
+        "technique": technique,
+        "category": payload.get("category") or payload.get("Category"),
+        "sensor_id": str(payload.get("SensorId") or payload.get("Sensor") or "") or None,
+        "filename": payload.get("FileName") or payload.get("filename"),
+        "process": process,
+        "process_path": process_path,
+        "cmdline": cmdline,
+        "parent_process": parent,
+        "hash": file_hash,
+        "hash_type": hash_type,
+        "detection_name": payload.get("DetectionName") or payload.get("AlertName"),
+    }
+    labels = {k: v for k, v in labels.items() if v is not None and str(v).strip() != ""}
+
+    vendor = payload.get("vendor") or payload.get("Product") or "Cynet"
     return NormalizedEvent(
         timestamp=parse_ts(
             payload.get("timestamp")
@@ -348,7 +412,7 @@ def normalize_siem_export(
             or payload.get("time")
         ),
         source_type="siem_export",
-        vendor=payload.get("vendor") or payload.get("Product") or "Cynet",
+        vendor=vendor,
         device=payload.get("device") or payload.get("Sensor") or payload.get("host"),
         host=payload.get("host") or payload.get("Hostname") or payload.get("device"),
         user=payload.get("user") or payload.get("User") or payload.get("Account"),
@@ -358,11 +422,7 @@ def normalize_siem_export(
         severity=severity,
         message=str(message),
         raw=raw or json.dumps(payload, default=str),
-        labels={
-            "alert_id": str(payload.get("AlertId") or payload.get("id") or ""),
-            "technique": payload.get("mitre") or payload.get("technique"),
-            "category": payload.get("category") or payload.get("Category"),
-        },
+        labels=labels,
         ingest_channel=ingest_channel,
     )
 

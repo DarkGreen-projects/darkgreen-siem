@@ -83,7 +83,7 @@ def test_alerts_csv_header_and_iocs():
     csv_text = alerts_to_csv([alert])
     lines = csv_text.strip().splitlines()
     assert lines[0].startswith(
-        "id,created_at,status,rule_id,rule_name,severity,title,src_ip,dst_ip,user,host,iocs"
+        "id,created_at,status,rule_id,rule_name,severity,title,mitre,src_ip,dst_ip,user,host,iocs"
     )
     assert "firewall-deny-hot-dst" in lines[1]
     assert "203.0.113.200" in lines[1]
