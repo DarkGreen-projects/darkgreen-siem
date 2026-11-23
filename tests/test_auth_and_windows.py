@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import pytest
@@ -79,8 +80,12 @@ def test_require_auth_accepts_machine_and_user_token():
     assert machine.kind == "machine"
     assert machine.role == "ingest"
     token, _ = issue_user_token(s, "analyst", role="admin", tenant_id="lab")
+    db = MagicMock()
+    db.scalar.return_value = SimpleNamespace(
+        username="analyst", role="admin", tenant_id="lab", active=True
+    )
     user = require_auth(
-        request, authorization=f"Bearer {token}", settings=s, db=_db()
+        request, authorization=f"Bearer {token}", settings=s, db=db
     )
     assert user.kind == "user"
     assert user.username == "analyst"

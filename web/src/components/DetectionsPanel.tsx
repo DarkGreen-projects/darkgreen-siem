@@ -34,7 +34,13 @@ function parseDryRunInput(text: string): unknown[] {
     .filter(Boolean);
 }
 
-export default function DetectionsPanel({ readOnly = false }: { readOnly?: boolean }) {
+export default function DetectionsPanel({
+  readOnly = false,
+  onPivotSearch,
+}: {
+  readOnly?: boolean;
+  onPivotSearch?: (query: string) => void;
+}) {
   const [rules, setRules] = useState<Rule[]>([]);
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -47,6 +53,7 @@ export default function DetectionsPanel({ readOnly = false }: { readOnly?: boole
   const [dryHits, setDryHits] = useState<DryRunHit[] | null>(null);
   const [dryNorm, setDryNorm] = useState(0);
   const [dryBusy, setDryBusy] = useState(false);
+  const [focusedAlertId, setFocusedAlertId] = useState<number | null>(null);
 
   const refresh = async () => {
     const opts: { mitre?: string; sla?: string } = {};
@@ -295,7 +302,18 @@ export default function DetectionsPanel({ readOnly = false }: { readOnly?: boole
         </div>
         <div className="list-block">
           {alerts.map((a) => (
-            <AlertCard key={a.id} alert={a} onUpdated={onAlertUpdated} />
+            <div
+              key={a.id}
+              onFocusCapture={() => setFocusedAlertId(a.id)}
+              onClick={() => setFocusedAlertId(a.id)}
+            >
+              <AlertCard
+                alert={a}
+                onUpdated={onAlertUpdated}
+                enableHotkeys={focusedAlertId === a.id}
+                onPivotSearch={onPivotSearch}
+              />
+            </div>
           ))}
           {alerts.length === 0 && (
             <p className="muted">

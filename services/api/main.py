@@ -4,10 +4,14 @@ import asyncio
 import logging
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 from typing import Any
 
-from fastapi import Depends, FastAPI, HTTPException, Query, Response
+import json
+
+from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware
 from sqlalchemy import and_, func, select
 from sqlalchemy.orm import Session
 
@@ -22,7 +26,7 @@ from .auth import (
     require_auth,
     require_perm,
 )
-from .config import get_settings
+from .config import enforce_startup_secrets, get_settings
 from .db import SessionLocal, get_db, init_db
 from .ingest import ingest_many, ingest_payload, list_sources
 from .models import Alert, AlertAudit, AlertComment, Event, Tenant
@@ -43,7 +47,9 @@ from .input_limits import (
     MAX_INGEST_BATCH,
     MAX_RAW_BYTES,
     MAX_SEARCH_Q,
+    escape_like,
 )
+from .rate_limit import enforce_ingest_rate, enforce_login_rate
 from .rule_validate import ALLOWED_SEVERITIES
 from .schemas import (
     ALERT_STATUSES,
@@ -65,10 +71,15 @@ from .schemas import (
     SearchResponse,
     SetupOut,
     SetupUpdate,
+    SimilarAlertOut,
     SourceHealthOut,
     SourceOut,
     StatsOut,
     StatusUpdate,
+    TriageBriefOut,
+    CopilotSuggestOut,
+    AlertLinksOut,
+    MemoryStatsOut,
     MultiEnrichOut,
     VtEnrichOut,
 )
@@ -208,6 +219,11 @@ def alert_to_out(
         created_at=alert.created_at,
         acked_at=alert.acked_at,
         closed_at=getattr(alert, "closed_at", None),
+        disposition=getattr(alert, "disposition", None),
+        closure_note=getattr(alert, "closure_note", None),
+        closed_by=getattr(alert, "closed_by", None),
+        risk_score=getattr(alert, "risk_score", None),
+        noise_hint=getattr(alert, "noise_hint", None),
         **sla,
     )
 
@@ -218,13 +234,38 @@ def apply_alert_status(
     status: str,
     *,
     actor: str = "analyst",
+    disposition: str | None = None,
+    closure_note: str | None = None,
 ) -> None:
+    from .schemas import ALERT_DISPOSITIONS
+
     status = status.strip().lower()
     if status not in ALERT_STATUSES:
         raise HTTPException(
             status_code=400,
             detail=f"Invalid status. Allowed: {', '.join(sorted(ALERT_STATUSES))}",
         )
+    note_text: str | None = None
+    if status == "closed":
+        disp = (disposition or "").strip().lower()
+        if disp not in ALERT_DISPOSITIONS:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "disposition required when closing: "
+                    + ", ".join(sorted(ALERT_DISPOSITIONS))
+                ),
+            )
+        note = (closure_note or "").strip()
+        if len(note) < 10:
+            raise HTTPException(
+                status_code=400,
+                detail="closure_note required when closing (min 10 characters)",
+            )
+        alert.disposition = disp
+        alert.closure_note = note
+        alert.closed_by = (actor or "analyst").strip() or "analyst"
+        note_text = f"{disp}: {note[:200]}"
     from_status = alert.status or "open"
     if from_status != status:
         db.add(
@@ -234,6 +275,7 @@ def apply_alert_status(
                 actor=(actor or "analyst").strip() or "analyst",
                 from_status=from_status,
                 to_status=status,
+                note=note_text,
             )
         )
     alert.status = status
@@ -242,6 +284,13 @@ def apply_alert_status(
         alert.acked_at = now
     if status == "closed" and getattr(alert, "closed_at", None) is None:
         alert.closed_at = now
+    if status == "closed":
+        try:
+            from .rag_memory import upsert_alert_memory
+
+            upsert_alert_memory(db, alert)
+        except Exception:
+            logger.exception("alert_memory upsert failed for alert %s", alert.id)
 
 
 def _handle_syslog(message: str, host: str) -> None:
@@ -307,11 +356,22 @@ async def _maintenance_loop(stop: asyncio.Event) -> None:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    enforce_startup_secrets(settings)
     init_db()
     db = SessionLocal()
     try:
         bootstrap_auth(db, settings)
         load_lab_settings_from_db(db)
+        try:
+            from .rag_memory import backfill_alert_memory
+
+            n_mem = backfill_alert_memory(db, tenant_id=settings.default_tenant_id)
+            if n_mem:
+                db.commit()
+                logger.info("Alert memory backfill: %s rows", n_mem)
+        except Exception:
+            logger.exception("Alert memory backfill skipped")
+            db.rollback()
         if settings.seed_on_start:
             seed_samples(db, settings.samples_dir)
             if settings.run_background_jobs:
@@ -343,13 +403,31 @@ async def lifespan(app: FastAPI):
         transport.close()
 
 
+_openapi_kwargs: dict[str, Any] = {}
+if getattr(settings, "disable_openapi", False):
+    _openapi_kwargs = {"docs_url": None, "redoc_url": None, "openapi_url": None}
+
 app = FastAPI(
     title="DarkGreen SIEM",
-    description="Multi-source demo SIEM — ingest, normalize, search, detect",
+    description="Multi-source demo SIEM - ingest, normalize, search, detect",
     version="0.1.0",
     lifespan=lifespan,
     dependencies=[Depends(require_auth)],
+    **_openapi_kwargs,
 )
+
+
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):  # type: ignore[no-untyped-def]
+        response = await call_next(request)
+        response.headers.setdefault("X-Content-Type-Options", "nosniff")
+        response.headers.setdefault("X-Frame-Options", "DENY")
+        response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+        path = request.url.path
+        if path.startswith("/api/") or path == "/health":
+            response.headers.setdefault("Cache-Control", "no-store")
+        return response
+
 
 origins = [o.strip() for o in settings.cors_origins.split(",") if o.strip()]
 app.add_middleware(
@@ -359,6 +437,7 @@ app.add_middleware(
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["Content-Type", "Authorization"],
 )
+app.add_middleware(SecurityHeadersMiddleware)
 
 
 @app.get("/health")
@@ -367,7 +446,12 @@ def health() -> dict[str, str]:
 
 
 @app.post("/api/auth/login", response_model=LoginResponse)
-def api_login(body: LoginRequest, db: Session = Depends(get_db)) -> LoginResponse:
+def api_login(
+    body: LoginRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+) -> LoginResponse:
+    enforce_login_rate(request)
     username = body.username.strip()
     if not settings.auth_enabled:
         token, exp = issue_user_token(
@@ -416,12 +500,25 @@ def api_me(
     )
 
 
+def _payload_byte_size(payload: Any) -> int:
+    if isinstance(payload, bytes):
+        return len(payload)
+    if isinstance(payload, str):
+        return len(payload.encode("utf-8", errors="replace"))
+    try:
+        return len(json.dumps(payload, ensure_ascii=False, default=str).encode("utf-8"))
+    except Exception:
+        return len(repr(payload).encode("utf-8", errors="replace"))
+
+
 @app.post("/api/ingest", response_model=IngestResponse)
 def api_ingest(
     body: IngestRequest,
+    request: Request,
     db: Session = Depends(get_db),
     principal: AuthPrincipal = Depends(require_perm("ingest")),
 ) -> IngestResponse:
+    enforce_ingest_rate(request, identity=principal.username or "ingest")
     items: list[tuple[Any, str | None, str]] = []
     for ev in body.events:
         items.append((ev.payload, ev.source_type, ev.ingest_channel or "http"))
@@ -434,7 +531,7 @@ def api_ingest(
             status_code=400, detail=f"Too many events (max {MAX_INGEST_BATCH})"
         )
     for payload, _, _ in items:
-        raw_size = len(payload) if isinstance(payload, (str, bytes)) else len(str(payload))
+        raw_size = _payload_byte_size(payload)
         if raw_size > MAX_RAW_BYTES:
             raise HTTPException(
                 status_code=400, detail=f"Event payload too large (max {MAX_RAW_BYTES} bytes)"
@@ -690,8 +787,9 @@ def api_create_rule(
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except RuleConflictError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
-    except OSError as exc:
-        raise HTTPException(status_code=500, detail=f"Failed to write rule: {exc}") from exc
+    except OSError:
+        logger.exception("Failed to write rule")
+        raise HTTPException(status_code=500, detail="Failed to write rule") from None
     return _rule_to_out(saved)
 
 
@@ -713,8 +811,9 @@ def api_update_rule(
         saved = save_rule(settings.rules_dir, payload, overwrite=True)
     except RuleValidationError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    except OSError as exc:
-        raise HTTPException(status_code=500, detail=f"Failed to write rule: {exc}") from exc
+    except OSError:
+        logger.exception("Failed to write rule")
+        raise HTTPException(status_code=500, detail="Failed to write rule") from None
     return _rule_to_out(saved)
 
 
@@ -729,10 +828,11 @@ def api_delete_rule(
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     try:
         delete_rule(settings.rules_dir, rid)
-    except FileNotFoundError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
-    except OSError as exc:
-        raise HTTPException(status_code=500, detail=f"Failed to delete rule: {exc}") from exc
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="Rule not found") from None
+    except OSError:
+        logger.exception("Failed to delete rule")
+        raise HTTPException(status_code=500, detail="Failed to delete rule") from None
     return Response(status_code=204)
 
 
@@ -748,12 +848,13 @@ def api_set_rule_enabled(
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     try:
         saved = set_rule_enabled(settings.rules_dir, rid, body.enabled)
-    except FileNotFoundError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="Rule not found") from None
     except RuleValidationError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    except OSError as exc:
-        raise HTTPException(status_code=500, detail=f"Failed to update rule: {exc}") from exc
+    except OSError:
+        logger.exception("Failed to update rule")
+        raise HTTPException(status_code=500, detail="Failed to update rule") from None
     return _rule_to_out(saved)
 
 
@@ -797,6 +898,17 @@ def api_patch_setup(
             notify_min_severity=body.notify_min_severity,
             sla_ack_minutes=body.sla_ack_minutes,
             sla_close_minutes=body.sla_close_minutes,
+            triage_scoring_enabled=body.triage_scoring_enabled,
+            triage_prior_days=body.triage_prior_days,
+            rag_enabled=body.rag_enabled,
+            rag_top_k=body.rag_top_k,
+            llm_enabled=body.llm_enabled,
+            llm_api_url=body.llm_api_url,
+            llm_api_key=body.llm_api_key,
+            llm_model=body.llm_model,
+            graph_enabled=body.graph_enabled,
+            graph_window_minutes=body.graph_window_minutes,
+            graph_min_history=body.graph_min_history,
             db=db,
         )
     except ValueError as exc:
@@ -823,10 +935,13 @@ def api_alerts(
     status: str | None = None,
     mitre: str | None = Query(None, max_length=64),
     sla: str | None = Query(None, max_length=16),
+    disposition: str | None = Query(None, max_length=32),
     limit: int = Query(50, ge=1, le=200),
     db: Session = Depends(get_db),
     principal: AuthPrincipal = Depends(require_perm("search")),
 ) -> list[AlertOut]:
+    from .schemas import ALERT_DISPOSITIONS
+
     if status and status not in ALERT_STATUSES:
         raise HTTPException(
             status_code=400,
@@ -837,6 +952,12 @@ def api_alerts(
         raise HTTPException(
             status_code=400,
             detail="sla must be one of: breached, at_risk, met, ok, na",
+        )
+    disp = (disposition or "").strip().lower() or None
+    if disp and disp not in ALERT_DISPOSITIONS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"disposition must be one of: {', '.join(sorted(ALERT_DISPOSITIONS))}",
         )
     briefs = _rule_briefs()
     fetch_limit = min(200, limit * 4) if sla_wanted else limit
@@ -849,7 +970,10 @@ def api_alerts(
     if status:
         stmt = stmt.where(Alert.status == status)
     if mitre and mitre.strip():
-        stmt = stmt.where(Alert.mitre.ilike(f"%{mitre.strip()}%"))
+        safe_mitre = escape_like(mitre.strip())
+        stmt = stmt.where(Alert.mitre.ilike(f"%{safe_mitre}%", escape="\\"))
+    if disp:
+        stmt = stmt.where(Alert.disposition == disp)
     out = [alert_to_out(a, briefs, db=db) for a in db.scalars(stmt).all()]
     if sla_wanted:
         out = [
@@ -864,6 +988,31 @@ def api_alerts(
             )
         ][:limit]
     return out
+
+
+@app.get("/api/alerts/queue", response_model=list[AlertOut])
+def api_alerts_queue(
+    limit: int = Query(50, ge=1, le=100),
+    db: Session = Depends(get_db),
+    principal: AuthPrincipal = Depends(require_perm("search")),
+) -> list[AlertOut]:
+    from .triage_brief import queue_sort_key
+
+    briefs = _rule_briefs()
+    stmt = (
+        select(Alert)
+        .where(
+            and_(
+                Alert.tenant_id == principal.tenant_id,
+                Alert.status.in_(["open", "in_progress"]),
+            )
+        )
+        .order_by(Alert.created_at.asc())
+        .limit(min(200, limit * 3))
+    )
+    outs = [alert_to_out(a, briefs, db=db) for a in db.scalars(stmt).all()]
+    outs.sort(key=queue_sort_key)
+    return outs[:limit]
 
 
 @app.get("/api/alerts/export.csv")
@@ -908,6 +1057,124 @@ def api_get_alert(
     return alert_to_out(alert, db=db)
 
 
+@app.get("/api/alerts/{alert_id}/similar", response_model=list[SimilarAlertOut])
+def api_alert_similar(
+    alert_id: int,
+    days: int = Query(30, ge=1, le=365),
+    limit: int = Query(10, ge=1, le=50),
+    db: Session = Depends(get_db),
+    principal: AuthPrincipal = Depends(require_perm("search")),
+) -> list[SimilarAlertOut]:
+    from .triage_score import find_similar_alerts
+
+    alert = db.get(Alert, alert_id)
+    if not alert or alert.tenant_id != principal.tenant_id:
+        raise HTTPException(status_code=404, detail="Alert not found")
+    rows = find_similar_alerts(db, alert, days=days, limit=limit)
+    return [
+        SimilarAlertOut(
+            id=r.id,
+            rule_id=r.rule_id,
+            title=r.title,
+            severity=r.severity,
+            status=r.status,
+            disposition=getattr(r, "disposition", None),
+            created_at=r.created_at,
+            closed_at=getattr(r, "closed_at", None),
+            noise_hint=getattr(r, "noise_hint", None),
+            risk_score=getattr(r, "risk_score", None),
+        )
+        for r in rows
+    ]
+
+
+@app.get("/api/alerts/{alert_id}/brief", response_model=TriageBriefOut)
+def api_alert_brief(
+    alert_id: int,
+    db: Session = Depends(get_db),
+    principal: AuthPrincipal = Depends(require_perm("search")),
+) -> TriageBriefOut:
+    from .triage_brief import build_alert_brief
+
+    alert = db.get(Alert, alert_id)
+    if not alert or alert.tenant_id != principal.tenant_id:
+        raise HTTPException(status_code=404, detail="Alert not found")
+    lab = get_lab_state()
+    data = build_alert_brief(
+        alert,
+        db=db,
+        ack_map=lab.sla_ack_minutes,
+        close_map=lab.sla_close_minutes,
+        prior_days=int(lab.triage_prior_days or 30),
+    )
+    return TriageBriefOut(**data)
+
+
+@app.get("/api/alerts/{alert_id}/links", response_model=AlertLinksOut)
+def api_alert_links(
+    alert_id: int,
+    db: Session = Depends(get_db),
+    principal: AuthPrincipal = Depends(require_perm("search")),
+) -> AlertLinksOut:
+    from .alert_graph import links_payload
+
+    alert = db.get(Alert, alert_id)
+    if not alert or alert.tenant_id != principal.tenant_id:
+        raise HTTPException(status_code=404, detail="Alert not found")
+    return AlertLinksOut(**links_payload(db, alert))
+
+
+@app.post("/api/alerts/{alert_id}/copilot-suggest", response_model=CopilotSuggestOut)
+def api_alert_copilot_suggest(
+    alert_id: int,
+    db: Session = Depends(get_db),
+    principal: AuthPrincipal = Depends(require_perm("alerts_write")),
+) -> CopilotSuggestOut:
+    from .copilot import suggest_closure
+    from .triage_brief import build_alert_brief
+
+    alert = db.get(Alert, alert_id)
+    if not alert or alert.tenant_id != principal.tenant_id:
+        raise HTTPException(status_code=404, detail="Alert not found")
+    lab = get_lab_state()
+    brief = build_alert_brief(
+        alert,
+        db=db,
+        ack_map=lab.sla_ack_minutes,
+        close_map=lab.sla_close_minutes,
+        prior_days=int(lab.triage_prior_days or 30),
+    )
+    suggestion = suggest_closure(brief)
+    return CopilotSuggestOut(**suggestion, brief=TriageBriefOut(**brief))
+
+
+@app.get("/api/memory/stats", response_model=MemoryStatsOut)
+def api_memory_stats(
+    db: Session = Depends(get_db),
+    principal: AuthPrincipal = Depends(require_perm("search")),
+) -> MemoryStatsOut:
+    from .rag_memory import memory_stats
+
+    lab = get_lab_state()
+    stats = memory_stats(db, tenant_id=principal.tenant_id)
+    return MemoryStatsOut(
+        **stats,
+        rag_enabled=bool(getattr(lab, "rag_enabled", True)),
+        rag_top_k=int(getattr(lab, "rag_top_k", 5) or 5),
+    )
+
+
+@app.get("/api/memory/export")
+def api_memory_export(
+    limit: int = Query(500, ge=1, le=2000),
+    db: Session = Depends(get_db),
+    principal: AuthPrincipal = Depends(require_perm("setup")),
+) -> dict[str, Any]:
+    from .rag_memory import export_memory
+
+    return export_memory(db, tenant_id=principal.tenant_id, limit=limit)
+
+
 @app.get("/api/enrich/vt", response_model=VtEnrichOut)
 def api_enrich_vt(
     type: str = Query(..., description="ip | domain | url"),
@@ -947,7 +1214,14 @@ def api_set_alert_status(
     alert = db.get(Alert, alert_id)
     if not alert or alert.tenant_id != principal.tenant_id:
         raise HTTPException(status_code=404, detail="Alert not found")
-    apply_alert_status(db, alert, body.status, actor=principal.username)
+    apply_alert_status(
+        db,
+        alert,
+        body.status,
+        actor=principal.username,
+        disposition=body.disposition,
+        closure_note=body.closure_note,
+    )
     db.commit()
     db.refresh(alert)
     return alert_to_out(alert, db=db)
@@ -984,7 +1258,7 @@ def api_add_comment(
     comment = AlertComment(
         tenant_id=alert.tenant_id,
         alert_id=alert_id,
-        author=(body.author or principal.username or "analyst").strip() or "analyst",
+        author=(principal.username or "analyst").strip() or "analyst",
         body=text,
     )
     db.add(comment)
@@ -1040,3 +1314,43 @@ def api_rules_dry_run(
         ],
         events_normalized=n_norm,
     )
+
+
+def _repo_root() -> Path:
+    return Path(__file__).resolve().parents[2]
+
+
+def _zip_tool_dir(subdir: str, zip_name: str) -> Response:
+    import io
+    import zipfile
+
+    root = _repo_root() / "tools" / subdir
+    if not root.is_dir():
+        raise HTTPException(status_code=404, detail=f"tool pack not found: {subdir}")
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        for path in root.rglob("*"):
+            if path.is_file() and path.name != ".agent-last.json":
+                if "generated" in path.parts:
+                    continue
+                zf.write(path, arcname=str(path.relative_to(root.parent)))
+    data = buf.getvalue()
+    return Response(
+        content=data,
+        media_type="application/zip",
+        headers={"Content-Disposition": f'attachment; filename="{zip_name}"'},
+    )
+
+
+@app.get("/api/tools/connect-wizard.zip")
+def api_download_connect_wizard(
+    principal: AuthPrincipal = Depends(require_perm("search")),
+) -> Response:
+    return _zip_tool_dir("connect-wizard", "darkgreen-connect-wizard.zip")
+
+
+@app.get("/api/tools/windows-agent.zip")
+def api_download_windows_agent(
+    principal: AuthPrincipal = Depends(require_perm("search")),
+) -> Response:
+    return _zip_tool_dir("windows-agent", "darkgreen-windows-agent.zip")

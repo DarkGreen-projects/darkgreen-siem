@@ -6,8 +6,8 @@ type Props = {
 };
 
 export default function LoginPanel({ onLoggedIn }: Props) {
-  const [username, setUsername] = useState("analyst");
-  const [password, setPassword] = useState("darkgreen");
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -30,15 +30,15 @@ export default function LoginPanel({ onLoggedIn }: Props) {
       <form className="panel login-panel" onSubmit={(e) => void submit(e)}>
         <h2 style={{ marginTop: 0 }}>Accesso lab</h2>
         <p className="muted">
-          Admin demo: <code className="mono">analyst</code> /{" "}
-          <code className="mono">darkgreen</code>. Viewer:{" "}
-          <code className="mono">viewer</code> / <code className="mono">viewer</code>
+          Usa le credenziali del tenant lab (vedi README / variabili{" "}
+          <span className="mono">DEMO_USERNAME</span>).
         </p>
         <label htmlFor="login-user">Username</label>
         <input
           id="login-user"
           value={username}
           onChange={(e) => setUsername(e.target.value)}
+          placeholder="username"
           autoComplete="username"
           disabled={busy}
         />
@@ -48,6 +48,7 @@ export default function LoginPanel({ onLoggedIn }: Props) {
           type="password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
+          placeholder="password"
           autoComplete="current-password"
           disabled={busy}
         />

@@ -79,15 +79,9 @@ def _rule_mitre(rule: dict[str, Any]) -> str | None:
 
 
 def _entity_key(rule: dict[str, Any], evidence: dict[str, Any]) -> str:
-    if evidence.get("join_key"):
-        return f"join:{evidence['join_key']}"
-    if evidence.get("group_by") and evidence.get("sample", {}).get("key") is not None:
-        return f"group:{evidence['group_by']}={evidence['sample']['key']}"
-    sample = evidence.get("sample") or {}
-    for field in ("src_ip", "host", "user"):
-        if sample.get(field):
-            return f"{field}:{sample[field]}"
-    return f"rule:{rule.get('id')}"
+    from .entity_norm import primary_entity_key
+
+    return primary_entity_key(evidence, rule_id=str(rule.get("id") or "unknown"))
 
 
 def _find_mergeable(
@@ -136,6 +130,8 @@ def _merge_alert(existing: Alert, evidence: dict[str, Any]) -> Alert:
         ev["sample"] = evidence["sample"]
     if evidence.get("entity_key"):
         ev["entity_key"] = evidence["entity_key"]
+    if evidence.get("entity_keys"):
+        ev["entity_keys"] = evidence["entity_keys"]
     existing.evidence = ev
     return existing
 
@@ -149,9 +145,12 @@ def _finalize_alert(
     dry_run: bool = False,
 ) -> tuple[Alert | None, bool]:
     """Return (alert, created). created=False means merged or skipped dry."""
-    evidence = dict(alert.evidence or {})
-    entity = _entity_key(rule, evidence)
-    evidence["entity_key"] = entity
+    from .entity_norm import apply_entity_normalization
+
+    evidence = apply_entity_normalization(
+        dict(alert.evidence or {}), rule_id=str(rule.get("id") or "")
+    )
+    entity = str(evidence.get("entity_key") or _entity_key(rule, evidence))
     mitre = _rule_mitre(rule)
     if mitre:
         evidence["mitre"] = mitre
@@ -171,9 +170,37 @@ def _finalize_alert(
     if existing is not None:
         merged = _merge_alert(existing, evidence)
         db.add(merged)
+        try:
+            from .alert_graph import link_alert
+            from .lab_settings import get_lab_state
+
+            lab = get_lab_state()
+            if getattr(lab, "graph_enabled", True):
+                link_alert(db, merged)
+        except Exception:
+            pass
         return merged, False
 
+    from .lab_settings import get_lab_state
+    from .triage_score import apply_score_to_alert
+
+    lab = get_lab_state()
+    if getattr(lab, "triage_scoring_enabled", True):
+        apply_score_to_alert(
+            db,
+            alert,
+            days=int(getattr(lab, "triage_prior_days", 30) or 30),
+            enabled=True,
+        )
     db.add(alert)
+    db.flush()
+    try:
+        from .alert_graph import link_alert
+
+        if getattr(lab, "graph_enabled", True):
+            link_alert(db, alert)
+    except Exception:
+        pass
     return alert, True
 
 

@@ -28,7 +28,11 @@ const STATUS_FILTERS: { id: AlertStatus | "all"; label: string }[] = [
   { id: "closed", label: "Chiusi" },
 ];
 
-export default function Dashboard() {
+export default function Dashboard({
+  onPivotSearch,
+}: {
+  onPivotSearch?: (query: string) => void;
+} = {}) {
   const [range, setRange] = useState<StatsRange>("1h");
   const [stats, setStats] = useState<Stats | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -37,6 +41,7 @@ export default function Dashboard() {
   const [slaFilter, setSlaFilter] = useState("");
   const [filteredAlerts, setFilteredAlerts] = useState<Alert[] | null>(null);
   const [exporting, setExporting] = useState(false);
+  const [focusedAlertId, setFocusedAlertId] = useState<number | null>(null);
 
   useEffect(() => {
     let alive = true;
@@ -342,7 +347,18 @@ export default function Dashboard() {
         ) : (
           <div className="list-block">
             {alertsShown.map((a) => (
-              <AlertCard key={a.id} alert={a} onUpdated={patchAlert} />
+              <div
+                key={a.id}
+                onFocusCapture={() => setFocusedAlertId(a.id)}
+                onClick={() => setFocusedAlertId(a.id)}
+              >
+                <AlertCard
+                  alert={a}
+                  onUpdated={patchAlert}
+                  enableHotkeys={focusedAlertId === a.id}
+                  onPivotSearch={onPivotSearch}
+                />
+              </div>
             ))}
           </div>
         )}

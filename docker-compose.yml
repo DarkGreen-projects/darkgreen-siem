@@ -27,16 +27,22 @@ services:
       DATABASE_URL: postgresql+psycopg://siem:siem@postgres:5432/darkgreen_siem
       RULES_DIR: /app/rules
       SAMPLES_DIR: /app/samples
-      SYSLOG_HOST: 0.0.0.0
+      # WARNING: 0.0.0.0 + published 5140/udp is lab-only. Prefer SYSLOG_SHARED_SECRET.
+      SYSLOG_HOST: ${SYSLOG_HOST:-0.0.0.0}
       SYSLOG_PORT: "5140"
+      SYSLOG_SHARED_SECRET: ${SYSLOG_SHARED_SECRET:-}
       SEED_ON_START: "true"
       LOG_DIR: /app/logs
       CORS_ORIGINS: http://localhost:8080,http://127.0.0.1:8080
       AUTH_ENABLED: "true"
+      STRICT_SECRETS: ${STRICT_SECRETS:-false}
+      DISABLE_OPENAPI: ${DISABLE_OPENAPI:-false}
+      ALLOW_INSECURE_WEBHOOKS: ${ALLOW_INSECURE_WEBHOOKS:-false}
+      EGRESS_HOST_ALLOWLIST: ${EGRESS_HOST_ALLOWLIST:-}
       DEMO_USERNAME: analyst
-      DEMO_PASSWORD: darkgreen
-      AUTH_SECRET: darkgreen-siem-compose-secret
-      SIEM_API_TOKEN: dg-lab-token-compose
+      DEMO_PASSWORD: ${DEMO_PASSWORD:-darkgreen}
+      AUTH_SECRET: ${AUTH_SECRET:-darkgreen-siem-compose-secret}
+      SIEM_API_TOKEN: ${SIEM_API_TOKEN:-dg-lab-token-compose}
       RETENTION_DAYS: "7"
       HEALTH_STALE_MINUTES: "5"
       HEALTH_SILENT_MINUTES: "30"
@@ -51,6 +57,7 @@ services:
       RUN_BACKGROUND_JOBS: "true"
     ports:
       - "8000:8000"
+      # WARNING: unauthenticated unless SYSLOG_SHARED_SECRET is set
       - "5140:5140/udp"
     volumes:
       - ./rules:/app/rules:rw

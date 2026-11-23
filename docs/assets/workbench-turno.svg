@@ -1,0 +1,61 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="480" viewBox="0 0 1200 480">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0b1f17"/>
+      <stop offset="100%" stop-color="#122820"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="480" fill="url(#bg)"/>
+  <text x="40" y="44" fill="#3ddc97" font-family="Segoe UI, Arial" font-size="26" font-weight="700">Workbench Turno</text>
+  <text x="40" y="72" fill="#9bb8a8" font-family="Segoe UI, Arial" font-size="14">Coda prioritizzata · briefing · hotkeys · checklist · copilot</text>
+
+  <!-- Queue panel -->
+  <rect x="40" y="100" width="320" height="320" rx="10" fill="#1a3328" stroke="#2d4a3c"/>
+  <text x="60" y="132" fill="#3ddc97" font-size="15" font-weight="700" font-family="Segoe UI, Arial">Coda turno</text>
+  <text x="60" y="156" fill="#9bb8a8" font-size="11" font-family="Segoe UI, Arial">SLA → signal → severity → età</text>
+
+  <rect x="60" y="175" width="280" height="48" rx="6" fill="#0f241c" stroke="#3ddc97"/>
+  <text x="72" y="195" fill="#e8f5ef" font-size="13" font-family="Segoe UI, Arial">#104 spray login · high</text>
+  <text x="72" y="213" fill="#ff6b6b" font-size="11" font-family="Consolas, monospace">SLA breached · likely_signal</text>
+
+  <rect x="60" y="233" width="280" height="48" rx="6" fill="#122820" stroke="#2d4a3c"/>
+  <text x="72" y="253" fill="#e8f5ef" font-size="13" font-family="Segoe UI, Arial">#101 deny RDP · high</text>
+  <text x="72" y="271" fill="#e0c36a" font-size="11" font-family="Consolas, monospace">at_risk · unclear</text>
+
+  <rect x="60" y="291" width="280" height="48" rx="6" fill="#122820" stroke="#2d4a3c"/>
+  <text x="72" y="311" fill="#e8f5ef" font-size="13" font-family="Segoe UI, Arial">#98 process hash · medium</text>
+  <text x="72" y="329" fill="#9bb8a8" font-size="11" font-family="Consolas, monospace">ok · T1059</text>
+
+  <text x="60" y="390" fill="#9bb8a8" font-size="12" font-family="Consolas, monospace">hotkeys  j/k  a  i  c  /  ?</text>
+
+  <!-- Detail -->
+  <rect x="390" y="100" width="770" height="320" rx="10" fill="#122820" stroke="#2d4a3c"/>
+  <text x="415" y="135" fill="#3ddc97" font-size="16" font-weight="700" font-family="Segoe UI, Arial">#104 Suspicious login spray</text>
+  <text x="415" y="160" fill="#9bb8a8" font-size="12" font-family="Segoe UI, Arial">T1110 · src_ip:203.0.113.9 · host:ws1</text>
+
+  <rect x="415" y="180" width="340" height="120" rx="8" fill="#1a3328" stroke="#2d4a3c"/>
+  <text x="430" y="205" fill="#3ddc97" font-size="13" font-weight="700" font-family="Segoe UI, Arial">Briefing</text>
+  <text x="430" y="228" fill="#e8f5ef" font-size="12" font-family="Consolas, monospace">Simili: FP 3 · TP 0</text>
+  <text x="430" y="250" fill="#e8f5ef" font-size="12" font-family="Consolas, monospace">Memoria: #88 false_positive</text>
+  <text x="430" y="272" fill="#e8f5ef" font-size="12" font-family="Consolas, monospace">Collegati: #101 temporal_follows</text>
+
+  <rect x="775" y="180" width="355" height="120" rx="8" fill="#1a3328" stroke="#2d4a3c"/>
+  <text x="790" y="205" fill="#3ddc97" font-size="13" font-weight="700" font-family="Segoe UI, Arial">Alert collegati</text>
+  <text x="790" y="228" fill="#e8f5ef" font-size="12" font-family="Segoe UI, Arial">#101 same_entity score 70</text>
+  <text x="790" y="250" fill="#e8f5ef" font-size="12" font-family="Segoe UI, Arial">#99 shared_ioc score 65</text>
+  <text x="790" y="272" fill="#9bb8a8" font-size="12" font-family="Segoe UI, Arial">GET /api/alerts/104/links</text>
+
+  <rect x="415" y="320" width="220" height="70" rx="8" fill="#0f241c" stroke="#3ddc97"/>
+  <text x="430" y="350" fill="#3ddc97" font-size="13" font-weight="700" font-family="Segoe UI, Arial">Copilot suggest</text>
+  <text x="430" y="372" fill="#e8f5ef" font-size="12" font-family="Segoe UI, Arial">false_positive · local_memory</text>
+
+  <rect x="655" y="320" width="220" height="70" rx="8" fill="#1a3328" stroke="#2d4a3c"/>
+  <text x="670" y="350" fill="#9bb8a8" font-size="13" font-family="Segoe UI, Arial">Checklist</text>
+  <text x="670" y="372" fill="#e8f5ef" font-size="12" font-family="Segoe UI, Arial">IOC · simili · nota · disp</text>
+
+  <rect x="895" y="320" width="235" height="70" rx="8" fill="#1a3328" stroke="#2d4a3c"/>
+  <text x="910" y="350" fill="#9bb8a8" font-size="13" font-family="Segoe UI, Arial">Close</text>
+  <text x="910" y="372" fill="#e8f5ef" font-size="12" font-family="Segoe UI, Arial">disposition + note ≥10</text>
+
+  <text x="40" y="455" fill="#9bb8a8" font-size="12" font-family="Segoe UI, Arial">Suggest-only: lo score e il copilot non chiudono mai in automatico</text>
+</svg>

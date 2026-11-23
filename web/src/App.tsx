@@ -15,8 +15,9 @@ import SourcesPanel from "./components/SourcesPanel";
 import DetectionsPanel from "./components/DetectionsPanel";
 import SetupPanel from "./components/SetupPanel";
 import LoginPanel from "./components/LoginPanel";
+import WorkbenchPanel from "./components/WorkbenchPanel";
 
-type Tab = "dashboard" | "search" | "sources" | "detections" | "setup";
+type Tab = "dashboard" | "turno" | "search" | "sources" | "detections" | "setup";
 
 export default function App() {
   const [tab, setTab] = useState<Tab>("dashboard");
@@ -25,6 +26,7 @@ export default function App() {
   const [tenant, setTenant] = useState<string | null>(getStoredTenant());
   const [checking, setChecking] = useState(!!getStoredToken());
   const [silentCount, setSilentCount] = useState(0);
+  const [searchPivot, setSearchPivot] = useState<string | null>(null);
 
   const canSetup = role === "admin";
   const canWriteRules = role === "admin" || role === "analyst";
@@ -94,6 +96,11 @@ export default function App() {
     setTenant(null);
   };
 
+  const goPivotSearch = (query: string) => {
+    setSearchPivot(query);
+    setTab("search");
+  };
+
   if (checking) {
     return (
       <div className="app">
@@ -124,6 +131,7 @@ export default function App() {
 
   const tabs: { id: Tab; label: string }[] = [
     { id: "dashboard", label: "Dashboard" },
+    { id: "turno", label: "Turno" },
     { id: "search", label: "Ricerca" },
     { id: "sources", label: "Sorgenti" },
     { id: "detections", label: "Detection" },
@@ -164,10 +172,19 @@ export default function App() {
         </nav>
       </header>
 
-      {tab === "dashboard" && <Dashboard />}
-      {tab === "search" && <SearchPanel />}
+      {tab === "dashboard" && <Dashboard onPivotSearch={goPivotSearch} />}
+      {tab === "turno" && <WorkbenchPanel onPivotSearch={goPivotSearch} />}
+      {tab === "search" && (
+        <SearchPanel
+          initialQuery={searchPivot}
+          onPivotConsumed={() => setSearchPivot(null)}
+          onPivotSearch={goPivotSearch}
+        />
+      )}
       {tab === "sources" && <SourcesPanel />}
-      {tab === "detections" && <DetectionsPanel readOnly={!canWriteRules} />}
+      {tab === "detections" && (
+        <DetectionsPanel readOnly={!canWriteRules} onPivotSearch={goPivotSearch} />
+      )}
       {tab === "setup" && canSetup && <SetupPanel />}
     </div>
   );

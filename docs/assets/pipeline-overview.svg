@@ -1,0 +1,64 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="520" viewBox="0 0 1200 520">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0b1f17"/>
+      <stop offset="100%" stop-color="#122820"/>
+    </linearGradient>
+    <marker id="arrow" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto">
+      <path d="M0,0 L10,4 L0,8 Z" fill="#3ddc97"/>
+    </marker>
+  </defs>
+  <rect width="1200" height="520" fill="url(#bg)"/>
+  <text x="48" y="52" fill="#3ddc97" font-family="Segoe UI, Arial" font-size="28" font-weight="700">Pipeline DarkGreen SIEM</text>
+  <text x="48" y="82" fill="#9bb8a8" font-family="Segoe UI, Arial" font-size="15">collect → normalize → store → detect → triage</text>
+
+  <!-- Sources -->
+  <rect x="48" y="130" width="200" height="260" rx="10" fill="#1a3328" stroke="#2d4a3c"/>
+  <text x="68" y="165" fill="#3ddc97" font-size="16" font-weight="700" font-family="Segoe UI, Arial">Sorgenti</text>
+  <text x="68" y="200" fill="#e8f5ef" font-size="14" font-family="Segoe UI, Arial">HTTP /api/ingest</text>
+  <text x="68" y="230" fill="#e8f5ef" font-size="14" font-family="Segoe UI, Arial">Syslog UDP 5140</text>
+  <text x="68" y="260" fill="#e8f5ef" font-size="14" font-family="Segoe UI, Arial">samples/ seed</text>
+  <text x="68" y="290" fill="#e8f5ef" font-size="14" font-family="Segoe UI, Arial">log-generator</text>
+  <text x="68" y="320" fill="#e8f5ef" font-size="14" font-family="Segoe UI, Arial">windows-agent</text>
+  <text x="68" y="350" fill="#9bb8a8" font-size="13" font-family="Segoe UI, Arial">fw · win · cloud · edr</text>
+
+  <line x1="248" y1="260" x2="300" y2="260" stroke="#3ddc97" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <!-- API -->
+  <rect x="300" y="130" width="220" height="260" rx="10" fill="#1a3328" stroke="#2d4a3c"/>
+  <text x="320" y="165" fill="#3ddc97" font-size="16" font-weight="700" font-family="Segoe UI, Arial">API FastAPI</text>
+  <text x="320" y="200" fill="#e8f5ef" font-size="14" font-family="Segoe UI, Arial">normalizers ECS-lite</text>
+  <text x="320" y="230" fill="#e8f5ef" font-size="14" font-family="Segoe UI, Arial">auth · RBAC · rate limit</text>
+  <text x="320" y="260" fill="#e8f5ef" font-size="14" font-family="Segoe UI, Arial">YAML rule engine</text>
+  <text x="320" y="290" fill="#e8f5ef" font-size="14" font-family="Segoe UI, Arial">enrich VT/Abuse/OTX</text>
+  <text x="320" y="320" fill="#e8f5ef" font-size="14" font-family="Segoe UI, Arial">notify · SLA · triage</text>
+  <text x="320" y="350" fill="#9bb8a8" font-size="13" font-family="Segoe UI, Arial">entity_norm · graph · RAG</text>
+
+  <line x1="520" y1="220" x2="580" y2="180" stroke="#3ddc97" stroke-width="2" marker-end="url(#arrow)"/>
+  <line x1="520" y1="300" x2="580" y2="340" stroke="#3ddc97" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <!-- Postgres -->
+  <rect x="580" y="120" width="240" height="120" rx="10" fill="#122820" stroke="#3ddc97"/>
+  <text x="600" y="155" fill="#3ddc97" font-size="16" font-weight="700" font-family="Segoe UI, Arial">Postgres</text>
+  <text x="600" y="185" fill="#e8f5ef" font-size="13" font-family="Consolas, monospace">events · alerts · users</text>
+  <text x="600" y="210" fill="#e8f5ef" font-size="13" font-family="Consolas, monospace">alert_memory · alert_links</text>
+
+  <!-- UI -->
+  <rect x="580" y="280" width="240" height="120" rx="10" fill="#1a3328" stroke="#2d4a3c"/>
+  <text x="600" y="315" fill="#3ddc97" font-size="16" font-weight="700" font-family="Segoe UI, Arial">UI React :8080</text>
+  <text x="600" y="345" fill="#e8f5ef" font-size="13" font-family="Segoe UI, Arial">Dashboard · Turno · Ricerca</text>
+  <text x="600" y="370" fill="#e8f5ef" font-size="13" font-family="Segoe UI, Arial">Sorgenti · Detection · Setup</text>
+
+  <!-- Outcomes -->
+  <rect x="880" y="160" width="272" height="200" rx="10" fill="#1a3328" stroke="#2d4a3c"/>
+  <text x="900" y="195" fill="#3ddc97" font-size="16" font-weight="700" font-family="Segoe UI, Arial">Esiti analista</text>
+  <text x="900" y="230" fill="#e8f5ef" font-size="14" font-family="Segoe UI, Arial">queue prioritizzata</text>
+  <text x="900" y="260" fill="#e8f5ef" font-size="14" font-family="Segoe UI, Arial">brief + fingerprint</text>
+  <text x="900" y="290" fill="#e8f5ef" font-size="14" font-family="Segoe UI, Arial">copilot local-first</text>
+  <text x="900" y="320" fill="#e8f5ef" font-size="14" font-family="Segoe UI, Arial">disposition + note</text>
+
+  <line x1="820" y1="180" x2="880" y2="230" stroke="#3ddc97" stroke-width="2" marker-end="url(#arrow)"/>
+  <line x1="820" y1="340" x2="880" y2="290" stroke="#3ddc97" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <text x="48" y="470" fill="#9bb8a8" font-size="13" font-family="Segoe UI, Arial">Demo lab · docker compose up --build · http://localhost:8080</text>
+</svg>

@@ -3,7 +3,16 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import BigInteger, Boolean, DateTime, String, Text, UniqueConstraint, func
+from sqlalchemy import (
+    BigInteger,
+    Boolean,
+    DateTime,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+    func,
+)
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
@@ -94,6 +103,11 @@ class Alert(Base):
     )
     acked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     closed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    disposition: Mapped[str | None] = mapped_column(String(32), nullable=True, index=True)
+    closure_note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    closed_by: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    risk_score: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    noise_hint: Mapped[str | None] = mapped_column(String(32), nullable=True)
 
 
 class AlertComment(Base):
@@ -127,6 +141,7 @@ class AlertAudit(Base):
     actor: Mapped[str] = mapped_column(String(128), default="analyst")
     from_status: Mapped[str] = mapped_column(String(32), default="")
     to_status: Mapped[str] = mapped_column(String(32), default="")
+    note: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), index=True
     )
@@ -144,5 +159,49 @@ class IocVerdict(Base):
     malicious_count: Mapped[int] = mapped_column(BigInteger, default=0)
     stats_json: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
     fetched_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), index=True
+    )
+
+
+class AlertMemory(Base):
+    """Closed-alert memory for portable Alert Memory RAG (FTS + structured boosts)."""
+
+    __tablename__ = "alert_memory"
+
+    alert_id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    tenant_id: Mapped[str] = mapped_column(String(64), default="lab", index=True)
+    rule_id: Mapped[str] = mapped_column(String(128), index=True)
+    entity_key: Mapped[str | None] = mapped_column(String(256), nullable=True, index=True)
+    disposition: Mapped[str | None] = mapped_column(String(32), nullable=True, index=True)
+    mitre: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    title: Mapped[str] = mapped_column(String(512), default="")
+    note_excerpt: Mapped[str] = mapped_column(Text, default="")
+    memory_text: Mapped[str] = mapped_column(Text, default="")
+    closed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True, index=True
+    )
+
+
+class AlertLink(Base):
+    """Directed edge between alerts (entity / temporal / MITRE / IOC)."""
+
+    __tablename__ = "alert_links"
+    __table_args__ = (
+        UniqueConstraint(
+            "src_alert_id",
+            "dst_alert_id",
+            "relation",
+            name="uq_alert_links_src_dst_rel",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    tenant_id: Mapped[str] = mapped_column(String(64), default="lab", index=True)
+    src_alert_id: Mapped[int] = mapped_column(BigInteger, index=True)
+    dst_alert_id: Mapped[int] = mapped_column(BigInteger, index=True)
+    relation: Mapped[str] = mapped_column(String(32), index=True)
+    score: Mapped[int] = mapped_column(Integer, default=0)
+    shared_keys: Mapped[list[Any]] = mapped_column(JSONB, default=list)
+    created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), index=True
     )

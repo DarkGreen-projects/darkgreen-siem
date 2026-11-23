@@ -21,7 +21,15 @@ function VtIpLink({ ip }: { ip: string | null | undefined }) {
   );
 }
 
-export default function SearchPanel() {
+export default function SearchPanel({
+  initialQuery,
+  onPivotConsumed,
+  onPivotSearch,
+}: {
+  initialQuery?: string | null;
+  onPivotConsumed?: () => void;
+  onPivotSearch?: (query: string) => void;
+} = {}) {
   const [q, setQ] = useState("action:deny");
   const [sourceType, setSourceType] = useState("");
   const [severity, setSeverity] = useState("");
@@ -65,6 +73,16 @@ export default function SearchPanel() {
     },
     [q, sourceType, severity]
   );
+
+  useEffect(() => {
+    if (!initialQuery) return;
+    setQ(initialQuery);
+    setSourceType("");
+    setSeverity("");
+    void runSearch({ q: initialQuery, source_type: "", severity: "" });
+    onPivotConsumed?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialQuery]);
 
   const applyQuick = (item: QuickQuery) => {
     setQ(item.q);
@@ -384,6 +402,8 @@ export default function SearchPanel() {
                   ? (selectedAlert as AlertSearchHit).matched_comment
                   : null
               }
+              enableHotkeys
+              onPivotSearch={onPivotSearch}
               onUpdated={(updated) => {
                 setSelectedAlert(updated);
                 setAlertHits((prev) =>

@@ -1,29 +1,48 @@
 import { useEffect, useState } from "react";
 import { api, type Source } from "../api";
-import { AGENT_PLATFORMS, DEMO_ONBOARDING_DEVICES } from "../onboardingDemo";
 
 const CHANNEL_HELP: Record<string, string> = {
-  seed: "File sample caricati all’avvio API",
+  seed: "File sample caricati all'avvio API",
   http: "REST /api/ingest (tool UI + log-generator)",
   syslog: "Collector syslog UDP sulla porta 5140",
+  "connect-wizard": "Heartbeat del wizard di connessione",
+  "windows-agent": "Agent Windows (Security Event Log)",
+  agent: "Agent generico",
 };
+
+function channelStatus(s: Source | undefined): "enrolled" | "stale" | "never" {
+  if (!s || !s.last_event_at) return "never";
+  const ageMs = Date.now() - new Date(s.last_event_at).getTime();
+  if (ageMs < 15 * 60 * 1000) return "enrolled";
+  return "stale";
+}
 
 function statusBadgeClass(status: string): string {
   if (status === "enrolled") return "health-ok";
-  if (status === "pending") return "health-stale";
+  if (status === "stale") return "health-stale";
   return "health-silent";
 }
 
-const STATUS_LABEL: Record<string, string> = {
-  enrolled: "enrolled",
-  pending: "pending",
-  never: "never",
-};
+async function downloadTool(path: string, filename: string) {
+  const { getStoredToken } = await import("../api");
+  const token = getStoredToken();
+  const headers: Record<string, string> = {};
+  if (token) headers.Authorization = `Bearer ${token}`;
+  const res = await fetch(path, { headers });
+  if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+  const blob = await res.blob();
+  const a = document.createElement("a");
+  const href = URL.createObjectURL(blob);
+  a.href = href;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(href);
+}
 
 export default function SourcesPanel() {
   const [sources, setSources] = useState<Source[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [showStatus, setShowStatus] = useState(false);
+  const [dlBusy, setDlBusy] = useState<string | null>(null);
 
   useEffect(() => {
     let alive = true;
@@ -40,25 +59,33 @@ export default function SourcesPanel() {
     };
   }, []);
 
+  const byChannel = Object.fromEntries(sources.map((s) => [s.channel, s]));
+  const wizard = byChannel["connect-wizard"];
+  const agent = byChannel["windows-agent"];
+
+  const onDownload = async (kind: "wizard" | "agent") => {
+    setDlBusy(kind);
+    setError(null);
+    try {
+      if (kind === "wizard") {
+        await downloadTool("/api/tools/connect-wizard.zip", "darkgreen-connect-wizard.zip");
+      } else {
+        await downloadTool("/api/tools/windows-agent.zip", "darkgreen-windows-agent.zip");
+      }
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setDlBusy(null);
+    }
+  };
+
   return (
     <div className="sources-stack">
       <div className="panel">
-        <div className="row" style={{ marginBottom: "0.5rem", alignItems: "center" }}>
-          <h3 style={{ margin: 0, flex: 1 }}>Canali di ingest</h3>
-          <button
-            type="button"
-            className="btn-demo-locked"
-            disabled
-            title="Non incluso in questa demo"
-            aria-disabled="true"
-          >
-            <span className="demo-locked-label">Aggiungi sorgente</span>
-            <span className="badge demo-only">Solo demo</span>
-          </button>
-        </div>
+        <h3 style={{ marginTop: 0 }}>Canali di ingest</h3>
         <p className="muted">
           DarkGreen SIEM accetta syslog firewall, eventi Windows, JSON cloud auth ed export
-          SIEM/EDR — normalizzati in uno schema ECS-lite unico.
+          SIEM/EDR - normalizzati in uno schema ECS-lite unico.
         </p>
         {error && <p className="error">{error}</p>}
         <table>
@@ -76,7 +103,7 @@ export default function SourcesPanel() {
                 <td className="mono">{s.channel}</td>
                 <td>{s.count}</td>
                 <td className="mono">
-                  {s.last_event_at ? new Date(s.last_event_at).toLocaleString() : "—"}
+                  {s.last_event_at ? new Date(s.last_event_at).toLocaleString() : "-"}
                 </td>
                 <td className="muted">{CHANNEL_HELP[s.channel] || "Custom / altro"}</td>
               </tr>
@@ -84,7 +111,7 @@ export default function SourcesPanel() {
             {sources.length === 0 && (
               <tr>
                 <td colSpan={4} className="muted">
-                  Nessuna attività di ingest — avvia Compose e attendi seed/log-generator.
+                  Nessuna attivita di ingest - avvia Compose e attendi seed/log-generator.
                 </td>
               </tr>
             )}
@@ -93,90 +120,61 @@ export default function SourcesPanel() {
       </div>
 
       <div className="panel">
-        <h3 style={{ marginTop: 0 }}>Onboarding agent</h3>
+        <h3 style={{ marginTop: 0 }}>Connector host</h3>
         <p className="muted">
-          Distribuisci collector leggeri che inviano telemetria host a DarkGreen SIEM. Pacchetti
-          agent ed enrollment live non sono inclusi in questa demo di portfolio — l’UI mostra il
-          flusso previsto.
+          Wizard passo-passo per collegare un host al SIEM, poi agent Windows leggero per eventi
+          Security. Download reali dal repo <span className="mono">tools/</span>.
         </p>
 
-        <h4 className="sources-subhead">Come fare onboarding</h4>
+        <h4 className="sources-subhead">1. Connect wizard</h4>
         <ol className="onboarding-guide">
+          <li>Scarica lo zip e apri <span className="mono">Connect-DarkGreen.ps1</span> (o lo script bash).</li>
+          <li>Inserisci URL API e token ingest.</li>
+          <li>Il wizard testa <span className="mono">/health</span>, invia un heartbeat e genera snippet NXLog/rsyslog.</li>
           <li>
-            Scarica l’agent DarkGreen per la piattaforma target (Windows, macOS, Linux, Android o
-            iOS).
-          </li>
-          <li>
-            Installa l’agent e punta all’URL API del SIEM (demo:{" "}
-            <code className="mono">http://localhost:8000</code>) con il token di enrollment del
-            tenant.
-          </li>
-          <li>
-            Verifica che l’agent raggiunga l’endpoint di ingest e che l’outbound HTTPS/HTTP sia
-            consentito.
-          </li>
-          <li>
-            Usa <strong>Verifica stato onboarding</strong> qui sotto per controllare che il device
-            risulti <span className="badge health-ok">enrolled</span> dopo il primo heartbeat.
+            Stato heartbeat:{" "}
+            <span className={`badge ${statusBadgeClass(channelStatus(wizard))}`}>
+              {channelStatus(wizard)}
+            </span>
+            {wizard?.last_event_at
+              ? ` · ultimo ${new Date(wizard.last_event_at).toLocaleString()}`
+              : " · nessun heartbeat ancora"}
           </li>
         </ol>
+        <button
+          type="button"
+          disabled={dlBusy === "wizard"}
+          onClick={() => void onDownload("wizard")}
+        >
+          {dlBusy === "wizard" ? "Download…" : "Scarica connect-wizard.zip"}
+        </button>
 
-        <h4 className="sources-subhead">Download agent</h4>
-        <div className="agent-download-grid">
-          {AGENT_PLATFORMS.map((platform) => (
-            <button
-              key={platform}
-              type="button"
-              className="btn-demo-locked agent-download-card"
-              disabled
-              title="Download agent non incluso in questa demo"
-              aria-disabled="true"
-            >
-              <span className="demo-locked-label">Download {platform}</span>
-              <span className="badge demo-only">Solo demo</span>
-            </button>
-          ))}
-        </div>
-
-        <div className="row" style={{ marginTop: "1rem", alignItems: "center", gap: "0.5rem" }}>
-          <button type="button" className="ghost" onClick={() => setShowStatus((v) => !v)}>
-            {showStatus ? "Nascondi stato onboarding" : "Verifica stato onboarding"}
-          </button>
-          <span className="muted" style={{ fontSize: "0.85rem" }}>
-            Vista enrollment di esempio (dati seed)
-          </span>
-        </div>
-
-        {showStatus && (
-          <div className="onboarding-status" style={{ marginTop: "0.75rem" }}>
-            <table>
-              <thead>
-                <tr>
-                  <th>Device</th>
-                  <th>Piattaforma</th>
-                  <th>Ultimo visto</th>
-                  <th>Stato</th>
-                </tr>
-              </thead>
-              <tbody>
-                {DEMO_ONBOARDING_DEVICES.map((d) => (
-                  <tr key={d.id}>
-                    <td className="mono">{d.name}</td>
-                    <td>{d.platform}</td>
-                    <td className="mono">
-                      {d.last_seen ? new Date(d.last_seen).toLocaleString() : "—"}
-                    </td>
-                    <td>
-                      <span className={`badge ${statusBadgeClass(d.status)}`}>
-                        {STATUS_LABEL[d.status] || d.status}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+        <h4 className="sources-subhead" style={{ marginTop: "1.25rem" }}>
+          2. Windows agent
+        </h4>
+        <ol className="onboarding-guide">
+          <li>Scarica lo zip agent e imposta <span className="mono">SIEM_URL</span> / <span className="mono">SIEM_API_TOKEN</span>.</li>
+          <li>
+            Esegui <span className="mono">DarkGreen-Agent.ps1 -Once</span> (Admin consigliato per Security log).
+          </li>
+          <li>
+            Stato canale:{" "}
+            <span className={`badge ${statusBadgeClass(channelStatus(agent))}`}>
+              {channelStatus(agent)}
+            </span>
+            {agent?.last_event_at
+              ? ` · ultimo ${new Date(agent.last_event_at).toLocaleString()}`
+              : " · nessun evento agent ancora"}
+          </li>
+        </ol>
+        <button
+          type="button"
+          className="ghost"
+          disabled={dlBusy === "agent"}
+          onClick={() => void onDownload("agent")}
+        >
+          {dlBusy === "agent" ? "Download…" : "Scarica windows-agent.zip"}
+        </button>
       </div>
     </div>
   );

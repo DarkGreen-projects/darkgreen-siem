@@ -1,0 +1,77 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="560" viewBox="0 0 1200 560">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0b1f17"/>
+      <stop offset="100%" stop-color="#122820"/>
+    </linearGradient>
+    <marker id="arrow" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto">
+      <path d="M0,0 L10,4 L0,8 Z" fill="#3ddc97"/>
+    </marker>
+  </defs>
+  <rect width="1200" height="560" fill="url(#bg)"/>
+  <text x="48" y="48" fill="#3ddc97" font-family="Segoe UI, Arial" font-size="28" font-weight="700">Alert graph + LLM context</text>
+  <text x="48" y="78" fill="#9bb8a8" font-family="Segoe UI, Arial" font-size="15">Entity normalizzate → archi → fingerprint → suggest (local-first / mini-LLM)</text>
+
+  <!-- Step 1 -->
+  <rect x="48" y="120" width="250" height="150" rx="10" fill="#1a3328" stroke="#2d4a3c"/>
+  <text x="68" y="155" fill="#3ddc97" font-size="15" font-weight="700" font-family="Segoe UI, Arial">1. Nuovo / merge alert</text>
+  <text x="68" y="185" fill="#e8f5ef" font-size="13" font-family="Segoe UI, Arial">rule engine finalize</text>
+  <text x="68" y="210" fill="#e8f5ef" font-size="13" font-family="Consolas, monospace">entity_norm</text>
+  <text x="68" y="235" fill="#9bb8a8" font-size="12" font-family="Consolas, monospace">src_ip: · host: · join:</text>
+
+  <line x1="298" y1="195" x2="350" y2="195" stroke="#3ddc97" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <!-- Step 2 -->
+  <rect x="350" y="120" width="250" height="150" rx="10" fill="#1a3328" stroke="#2d4a3c"/>
+  <text x="370" y="155" fill="#3ddc97" font-size="15" font-weight="700" font-family="Segoe UI, Arial">2. link_alert</text>
+  <text x="370" y="185" fill="#e8f5ef" font-size="13" font-family="Segoe UI, Arial">finestra graph_window</text>
+  <text x="370" y="210" fill="#e8f5ef" font-size="13" font-family="Consolas, monospace">same_entity · shared_ioc</text>
+  <text x="370" y="235" fill="#9bb8a8" font-size="12" font-family="Segoe UI, Arial">se storia ≥ min: temporal / MITRE</text>
+
+  <line x1="600" y1="195" x2="652" y2="195" stroke="#3ddc97" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <!-- Step 3 graph store -->
+  <rect x="652" y="120" width="250" height="150" rx="10" fill="#122820" stroke="#3ddc97"/>
+  <text x="672" y="155" fill="#3ddc97" font-size="15" font-weight="700" font-family="Segoe UI, Arial">3. alert_links</text>
+  <text x="672" y="185" fill="#e8f5ef" font-size="13" font-family="Consolas, monospace">src → dst · relation</text>
+  <text x="672" y="210" fill="#e8f5ef" font-size="13" font-family="Consolas, monospace">score · shared_keys</text>
+  <text x="672" y="235" fill="#9bb8a8" font-size="12" font-family="Segoe UI, Arial">cap ~20 archi / alert</text>
+
+  <!-- Graph visual mini -->
+  <circle cx="980" cy="160" r="28" fill="#1a3328" stroke="#3ddc97" stroke-width="2"/>
+  <text x="968" y="165" fill="#e8f5ef" font-size="12" font-family="Consolas, monospace">A1</text>
+  <circle cx="1080" cy="145" r="22" fill="#1a3328" stroke="#2d4a3c" stroke-width="2"/>
+  <text x="1068" y="150" fill="#e8f5ef" font-size="11" font-family="Consolas, monospace">A2</text>
+  <circle cx="1060" cy="230" r="22" fill="#1a3328" stroke="#2d4a3c" stroke-width="2"/>
+  <text x="1048" y="235" fill="#e8f5ef" font-size="11" font-family="Consolas, monospace">A3</text>
+  <line x1="1005" y1="150" x2="1058" y2="145" stroke="#3ddc97" stroke-width="2"/>
+  <line x1="1000" y1="180" x2="1042" y2="215" stroke="#9bb8a8" stroke-width="1.5" stroke-dasharray="4 3"/>
+  <text x="940" y="280" fill="#9bb8a8" font-size="12" font-family="Segoe UI, Arial">grafo entity / catena</text>
+
+  <!-- Lower flow -->
+  <line x1="777" y1="270" x2="777" y2="320" stroke="#3ddc97" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <rect x="48" y="330" width="340" height="150" rx="10" fill="#1a3328" stroke="#2d4a3c"/>
+  <text x="68" y="365" fill="#3ddc97" font-size="15" font-weight="700" font-family="Segoe UI, Arial">4. alert_fingerprint</text>
+  <text x="68" y="395" fill="#e8f5ef" font-size="13" font-family="Segoe UI, Arial">title · severity · MITRE · IOC</text>
+  <text x="68" y="420" fill="#e8f5ef" font-size="13" font-family="Segoe UI, Arial">entity_keys · steps · connected</text>
+  <text x="68" y="445" fill="#e8f5ef" font-size="13" font-family="Segoe UI, Arial">casi memoria (top-K)</text>
+
+  <line x1="388" y1="405" x2="450" y2="405" stroke="#3ddc97" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <rect x="450" y="330" width="340" height="150" rx="10" fill="#1a3328" stroke="#2d4a3c"/>
+  <text x="470" y="365" fill="#3ddc97" font-size="15" font-weight="700" font-family="Segoe UI, Arial">5. Brief + Copilot</text>
+  <text x="470" y="395" fill="#e8f5ef" font-size="13" font-family="Segoe UI, Arial">local_memory se priors forti</text>
+  <text x="470" y="420" fill="#e8f5ef" font-size="13" font-family="Segoe UI, Arial">altrimenti mini-LLM + fingerprint</text>
+  <text x="470" y="445" fill="#e8f5ef" font-size="13" font-family="Consolas, monospace">related_alert_ids · relation_hint</text>
+
+  <line x1="790" y1="405" x2="860" y2="405" stroke="#3ddc97" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <rect x="860" y="330" width="292" height="150" rx="10" fill="#122820" stroke="#3ddc97"/>
+  <text x="880" y="365" fill="#3ddc97" font-size="15" font-weight="700" font-family="Segoe UI, Arial">UI Turno / AlertCard</text>
+  <text x="880" y="395" fill="#e8f5ef" font-size="13" font-family="Segoe UI, Arial">blocco Alert collegati</text>
+  <text x="880" y="420" fill="#e8f5ef" font-size="13" font-family="Segoe UI, Arial">suggest disposition + nota</text>
+  <text x="880" y="445" fill="#9bb8a8" font-size="12" font-family="Segoe UI, Arial">solo suggest, mai auto-close</text>
+
+  <text x="48" y="530" fill="#9bb8a8" font-size="13" font-family="Segoe UI, Arial">Setup: graph_enabled · graph_window_minutes · graph_min_history · rag_top_k · LLM_*</text>
+</svg>

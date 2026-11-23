@@ -191,6 +191,10 @@ def test_notify_slack_payload_mocked():
     )
     with (
         patch("services.api.notify.get_lab_state", return_value=state),
+        patch(
+            "services.api.url_safety.validate_egress_url",
+            side_effect=lambda u, purpose="egress": u,
+        ),
         patch("services.api.notify.httpx.Client") as client_cls,
     ):
         client = MagicMock()

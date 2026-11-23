@@ -6,6 +6,7 @@ import base64
 import logging
 from datetime import datetime, timedelta, timezone
 from typing import Any
+from urllib.parse import quote
 
 import httpx
 from sqlalchemy import and_, select
@@ -87,15 +88,15 @@ def _provider_key(state: LabState, provider: str) -> str:
 
 def _vt_url(ioc_type: str, value: str) -> str:
     if ioc_type == "ip":
-        return f"https://www.virustotal.com/api/v3/ip_addresses/{value}"
+        return f"https://www.virustotal.com/api/v3/ip_addresses/{quote(value, safe='')}"
     if ioc_type == "domain":
-        return f"https://www.virustotal.com/api/v3/domains/{value}"
+        return f"https://www.virustotal.com/api/v3/domains/{quote(value, safe='')}"
     encoded = base64.urlsafe_b64encode(value.encode("utf-8")).decode("ascii").rstrip("=")
     return f"https://www.virustotal.com/api/v3/urls/{encoded}"
 
 
 def _fetch_vt(api_key: str, ioc_type: str, value: str) -> tuple[str, int, dict[str, Any]]:
-    with httpx.Client(timeout=12.0) as client:
+    with httpx.Client(timeout=12.0, follow_redirects=False) as client:
         resp = client.get(_vt_url(ioc_type, value), headers={"x-apikey": api_key})
     if resp.status_code == 404:
         return "undetected", 0, {}
@@ -111,7 +112,7 @@ def _fetch_vt(api_key: str, ioc_type: str, value: str) -> tuple[str, int, dict[s
 def _fetch_abuseipdb(api_key: str, ioc_type: str, value: str) -> tuple[str, int, dict[str, Any]]:
     if ioc_type != "ip":
         return "unknown", 0, {"skipped": "abuseipdb supports ip only"}
-    with httpx.Client(timeout=12.0) as client:
+    with httpx.Client(timeout=12.0, follow_redirects=False) as client:
         resp = client.get(
             "https://api.abuseipdb.com/api/v2/check",
             params={"ipAddress": value, "maxAgeInDays": 90},
@@ -131,13 +132,14 @@ def _fetch_abuseipdb(api_key: str, ioc_type: str, value: str) -> tuple[str, int,
 
 
 def _fetch_otx(api_key: str, ioc_type: str, value: str) -> tuple[str, int, dict[str, Any]]:
+    safe = quote(value, safe="")
     if ioc_type == "ip":
-        url = f"https://otx.alienvault.com/api/v1/indicators/IPv4/{value}/general"
+        url = f"https://otx.alienvault.com/api/v1/indicators/IPv4/{safe}/general"
     elif ioc_type == "domain":
-        url = f"https://otx.alienvault.com/api/v1/indicators/domain/{value}/general"
+        url = f"https://otx.alienvault.com/api/v1/indicators/domain/{safe}/general"
     else:
         return "unknown", 0, {"skipped": "otx supports ip/domain"}
-    with httpx.Client(timeout=12.0) as client:
+    with httpx.Client(timeout=12.0, follow_redirects=False) as client:
         resp = client.get(url, headers={"X-OTX-API-KEY": api_key})
     if resp.status_code == 404:
         return "undetected", 0, {}

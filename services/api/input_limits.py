@@ -19,7 +19,9 @@ MAX_THRESHOLD = 1_000_000
 MAX_MATCH_KEYS = 20
 MAX_MATCH_VALUE_LEN = 256
 
-ALLOWED_INGEST_CHANNELS = frozenset({"http", "syslog", "seed", "agent", "file"})
+ALLOWED_INGEST_CHANNELS = frozenset(
+    {"http", "syslog", "seed", "agent", "file", "connect-wizard", "windows-agent"}
+)
 ALLOWED_SOURCE_TYPES = frozenset({"firewall", "windows", "cloud_auth", "siem_export"})
 ALLOWED_MATCH_KEYS = frozenset(
     {

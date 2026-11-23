@@ -21,10 +21,11 @@ Parte del portfolio [DarkGreen Projects](https://github.com/DarkGreen-projects).
 | **TLS / HA** | Overlay Compose TLS + 2 API dietro nginx (vedi README) |
 | **Ricerca** | Query `field:value` + free-text; **ricerche predefinite** (login_failed, deny, audit_cleared, malware…) |
 | **Dashboard** | EPS, timeline per sorgente, health strip, filtri stato/MITRE, **export CSV** |
-| **Setup lab** | Retention, silence, purge, enrichment keys, webhook Slack/Teams, **SLA ack/close per severity** |
+| **Turno** | Workbench coda prioritizzata, briefing, **alert collegati**, hotkeys j/k a i c /, checklist, pivot |
+| **Setup lab** | Retention, silence, purge, TI keys, webhook, **SLA**, **RAG**, **Alert graph**, **Copilot LLM** |
 | **Detection** | YAML match / threshold / correlation; CRUD UI; **dry-run** bench; match `labels.*` |
-| **Alert workflow** | Stati + commenti + audit; **MITRE** su regole/alert; **dedup/merge** rule+entity in cooldown |
-| **Sorgenti** | Canali live + onboarding agent; alert ops se silenziose; [guida collectors](docs/collectors-windows-syslog.md) |
+| **Alert workflow** | Stati + disposition/note; **MITRE**; dedup; **SLA**; triage score; **Memory RAG**; **alert graph**; copilot |
+| **Sorgenti** | Canali live; **connect-wizard** e **windows-agent** scaricabili; [guida collectors](docs/collectors-windows-syslog.md) |
 | **VirusTotal / TI** | Key in Setup (VT, AbuseIPDB, OTX) + verdict in cache sulle card; correlazione enrich |
 
 ## Avvio rapido
@@ -134,6 +135,45 @@ Minuti massimi per severity, configurabili in **Setup → SLA alert** (o env JSO
 - Stati computed: `ok`, `at_risk` (>80%), `breached`, `met`, `na` (se minuti = 0)
 - Filtro UI/API: `GET /api/alerts?sla=breached`
 
+### Triage disposition e learning suggestivo
+
+Alla chiusura di un alert sono obbligatori:
+- **disposition**: `true_positive` | `false_positive` | `benign` | `duplicate` | `tuning_needed`
+- **closure_note** (min 10 caratteri)
+
+Lo score `risk_score` / `noise_hint` usa severity, MITRE, occurrences e priors dalle chiusure passate stessa regola+entity. Solo suggerimenti (badge + alert simili): **nessun blocco automatico**. Setup: toggle scoring + finestra giorni.
+
+API: `GET /api/alerts/{id}/similar`, filtro `?disposition=`.
+
+### Workbench Turno + Copilot + Alert Memory RAG
+
+Tab **Turno**: coda `open`/`in_progress` ordinata (SLA breached > at_risk > likely_signal > severity > età), dettaglio con briefing locale, checklist in `sessionStorage`, pivot 1-click verso Ricerca.
+
+Hotkeys (Workbench e card in focus): `j`/`k` navigazione, `a` ack, `i` in corso, `c` close dialog, `/` pivot, `?` aiuto.
+
+**Alert Memory RAG** (portatile): a ogni chiusura l’alert entra in `alert_memory` (testo + FTS Postgres). Il suggest è **local-first** (priors forti → zero LLM), altrimenti mini-LLM con top-K casi dell’ambiente. Export JSON da Setup per hub esterni.
+
+**Alert graph**: a create/merge normalizza `entity_keys` e scrive archi in `alert_links` (`same_entity`, `shared_ioc`; con storia sufficiente anche `temporal_follows` / `mitre_chain`). Brief e Copilot usano fingerprint strutturato + vicini del grafo (`related_alert_ids`).
+
+| Endpoint | Ruolo |
+|----------|--------|
+| `GET /api/alerts/queue` | Coda prioritizzata |
+| `GET /api/alerts/{id}/brief` | Briefing + fingerprint + connected + casi |
+| `GET /api/alerts/{id}/links` | Vicini grafo |
+| `POST /api/alerts/{id}/copilot-suggest` | Suggest `local_memory` / `llm_rag` (fail soft) |
+| `GET /api/memory/stats` | Contatori memoria tenant |
+| `GET /api/memory/export` | Export JSON (admin) |
+
+Setup: toggle RAG + `rag_top_k`; Alert graph (`graph_enabled`, `graph_window_minutes`, `graph_min_history`); Copilot LLM opzionale (`LLM_*`).
+
+### Connector host (wizard + agent)
+
+Download da UI Sorgenti (o API):
+- `GET /api/tools/connect-wizard.zip` - PowerShell/bash passo-passo (health, heartbeat, snippet NXLog/rsyslog)
+- `GET /api/tools/windows-agent.zip` - agent lab Security Event Log → `/api/ingest`
+
+Canali ingest: `connect-wizard`, `windows-agent`.
+
 ### Cynet / siem_export, dry-run, MITRE, dedup
 
 - **Cynet**: `normalize_siem_export` mappa process/hash/MITRE in `labels.*`; regole seed `cynet-malware-hash.yml`, `cynet-suspicious-process.yml`. Match YAML supporta `labels.hash`, `labels.process`, ecc.
@@ -159,13 +199,21 @@ src_ip:203.0.113.45
 
 Pipeline demo ispirata a flussi collect → normalize → search → detect (nessuna affiliazione vendor). Dettaglio: [docs/architecture.md](docs/architecture.md).
 
+![Pipeline DarkGreen SIEM](docs/assets/pipeline-overview.svg)
+
 ```text
 samples / syslog / HTTP  →  FastAPI + normalizers  →  Postgres
                                       ↓
-                              YAML rule engine → alerts
+                     YAML rules → alerts → memory + graph links
                                       ↓
-                    React UI (Dashboard · Ricerca · Sorgenti · Detection)
+        React UI (Dashboard · Turno · Ricerca · Sorgenti · Detection · Setup)
 ```
+
+### Workbench e alert graph
+
+![Workbench Turno](docs/assets/workbench-turno.svg)
+
+![Alert graph + LLM context](docs/assets/alert-graph-flow.svg)
 
 ## Struttura repository
 
@@ -175,11 +223,12 @@ darkgreen-siem/
 ├── rules/                 # regole detection YAML
 ├── samples/               # log multi-vendor fittizi
 ├── services/
-│   ├── api/               # FastAPI, syslog, regole, validazione input
+│   ├── api/               # FastAPI, syslog, regole, RAG, graph, copilot
 │   ├── normalizers/       # parser ECS-lite
 │   └── log-generator/     # traffico demo continuo
+├── tools/                 # connect-wizard + windows-agent
 ├── web/                   # UI React + Vite (+ nginx)
-├── docs/                  # architettura + asset
+├── docs/                  # architettura + diagrammi SVG
 └── tests/                 # pytest
 ```
 
@@ -204,10 +253,15 @@ L’API richiede Postgres (`DATABASE_URL`). Il percorso più semplice resta `doc
 ## Dati e sicurezza
 
 - Sample con IP **RFC5737** e host/utenti fittizi.
-- **Auth lab abilitata di default** (login + `SIEM_API_TOKEN`); resta un lab locale, non esporre su Internet senza hardening.
-- Limiti di input, allowlist, escape LIKE, header di sicurezza base su nginx.
-- Non collegare stream di produzione senza hardening ulteriore (TLS, retention, RBAC - fuori scope v0.1).
+- **Auth lab abilitata di default** (login + `SIEM_API_TOKEN`); resta un lab su rete privata, non esporre su Internet.
+- Copia [`.env.example`](.env.example), ruota `AUTH_SECRET` / `SIEM_API_TOKEN` / password demo; con `STRICT_SECRETS=true` i default deboli bloccano l’avvio.
+- Login rate-limited (429); OpenAPI disattivabile (`DISABLE_OPENAPI=true`); commenti firmati dal principal (no spoof author).
+- Syslog UDP: size/rate limit + `SYSLOG_SHARED_SECRET` opzionale (prefisso `SECRET ` o `#dg-token=SECRET `). Non pubblicare `5140/udp` senza secret.
+- Egress SSRF: notify/LLM solo `https` (o http se `ALLOW_INSECURE_WEBHOOKS`), blocco host privati/metadata, allowlist `EGRESS_HOST_ALLOWLIST`.
+- Segreti Setup (API key, webhook, LLM) cifrati a riposo (Fernet da `AUTH_SECRET`); mask stretta in UI.
+- Nginx: CSP + frame deny; API: header sicurezza + `Cache-Control: no-store` su `/api`.
+- Connect wizard Linux: token solo da env/prompt (mai argv).
 
 ## Licenza
 
-MIT — vedi [LICENSE](LICENSE).
+MIT - vedi [LICENSE](LICENSE).

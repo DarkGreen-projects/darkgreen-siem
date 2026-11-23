@@ -4,13 +4,15 @@
 
 DarkGreen SIEM è una **demo di portfolio** di una pipeline di log di sicurezza multi-fonte, ispirata ai flussi in stile LogPoint collect → normalize → search → detect. Non è affiliata a LogPoint/Guardsix e non è indurita per la produzione.
 
+![Pipeline overview](assets/pipeline-overview.svg)
+
 ## Componenti
 
 | Servizio | Ruolo |
 |----------|-------|
-| `postgres` | Store eventi + alert (label JSONB) |
-| `api` | FastAPI ingest, search, stats, motore regole YAML, syslog UDP embedded |
-| `web` | UI React (Dashboard, Ricerca, Sorgenti, Detection) dietro nginx |
+| `postgres` | Store eventi + alert + `alert_memory` + `alert_links` |
+| `api` | FastAPI ingest, search, stats, regole YAML, syslog UDP, RAG, graph, copilot |
+| `web` | UI React (Dashboard, Turno, Ricerca, Sorgenti, Detection, Setup) dietro nginx |
 | `log-generator` | Traffico demo multi-fonte continuo (HTTP + syslog) |
 
 ```mermaid
@@ -22,6 +24,8 @@ flowchart LR
   Norm --> PG[(Postgres)]
   Rules[rules/*.yml] --> Engine[rule engine]
   Engine --> PG
+  Engine --> Graph[alert_links]
+  Engine --> Mem[alert_memory]
   UI[web :8080] -->|/api| API
   API --> PG
 ```
@@ -55,8 +59,12 @@ Isolamento rigido per riga: nessun cross-tenant.
 
 ## Sicurezza e storage
 
-- Syslog: size cap + rate limit; purge/silence per tenant; token invalidi se utente cancellato
-- `AUTH_ENABLED=false` richiede `ALLOW_INSECURE_NO_AUTH=true`
+- Syslog: size cap + rate limit + `SYSLOG_SHARED_SECRET`; purge/silence per tenant; token invalidi se utente cancellato
+- `AUTH_ENABLED=false` richiede `ALLOW_INSECURE_NO_AUTH=true`; `STRICT_SECRETS` blocca secret default; `DISABLE_OPENAPI` nasconde docs
+- Login/ingest rate limit in-process; bootstrap token senza users DB → ruolo `viewer`
+- Egress: `url_safety` su webhook/LLM (https, no privati, allowlist opzionale); IOC path quoted
+- `lab_settings` sensibili: Fernet (`enc:`) derivato da `AUTH_SECRET`
+- Nginx CSP + HSTS (overlay TLS); middleware header API
 - HA: solo `api` esegue rules/maintenance (`RUN_BACKGROUND_JOBS=false` su `api-b`); setup rilegge `lab_settings` da DB
 - `events.raw` compresso zlib se >512B; log API rotanti+gzip; Docker log max-size
 
@@ -76,6 +84,29 @@ Regole YAML sotto `rules/`:
 - **Dry-run**: `POST /api/rules/dry-run` valuta in memoria senza scrivere alert
 - **Notify**: webhook Slack/Teams su create di alert critical/high (Setup / env)
 - **SLA**: minuti ack/close per severity (`lab_settings` + Setup); badge e filtro `?sla=` su alert; `acked_at` al leave-open, `closed_at` a closed
+- **Triage**: disposition + nota obbligatorie a close; score/noise_hint suggest-only da priors FP/TP; `GET /api/alerts/{id}/similar`
+- **Workbench**: tab Turno + `GET /api/alerts/queue` (priorità SLA/signal/severity); briefing locale `GET /api/alerts/{id}/brief`; hotkeys triage condivise
+- **Alert Memory RAG**: tabella `alert_memory` (upsert a close + backfill); retrieve ibrido FTS + boost rule/entity; `GET /api/memory/stats|export`
+- **Entity norm**: `entity_norm` allinea `join:` / `src_ip:` / host / user in `evidence.entity_keys` (similar, RAG, grafo)
+- **Alert graph**: tabella `alert_links` (relation + score + shared_keys); `link_alert` post-create; mature above `graph_min_history`; `GET /api/alerts/{id}/links`
+- **Fingerprint**: `alert_fingerprint` (title, entity, MITRE, IOC, steps, connected top-K, cases) → brief + Copilot payload
+- **Copilot**: local-first da memoria/grafo; altrimenti mini-LLM con fingerprint (`related_alert_ids` filtrati); fail soft + fallback majority
+- **Connector**: zip wizard e windows-agent sotto `tools/`, download da Sorgenti / `/api/tools/*.zip`
+
+### Flusso alert graph + LLM
+
+![Alert graph flow](assets/alert-graph-flow.svg)
+
+1. A create/merge: `entity_norm` scrive `entity_key` + `entity_keys`
+2. `link_alert` cerca peer nella finestra `graph_window_minutes` e upserta archi
+3. Sotto `graph_min_history`: solo `same_entity` / `shared_ioc`; sopra anche `temporal_follows` / `mitre_chain`
+4. Brief costruisce fingerprint + `connected`; Copilot propone disposition e `related_alert_ids` (solo ID presenti nel contesto)
+
+### Workbench Turno
+
+![Workbench Turno](assets/workbench-turno.svg)
+
+Coda `GET /api/alerts/queue`, briefing `GET /api/alerts/{id}/brief`, link `GET /api/alerts/{id}/links`, suggest `POST /api/alerts/{id}/copilot-suggest`. Hotkeys: `j`/`k` navigazione, `a` ack, `i` in corso, `c` close, `/` pivot, `?` aiuto.
 
 ## Collectors
 

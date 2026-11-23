@@ -30,6 +30,18 @@ export default function SetupPanel() {
   const [notifyMinSev, setNotifyMinSev] = useState("high");
   const [slaAck, setSlaAck] = useState<Record<string, number>>({ ...DEFAULT_ACK });
   const [slaClose, setSlaClose] = useState<Record<string, number>>({ ...DEFAULT_CLOSE });
+  const [triageScoring, setTriageScoring] = useState(true);
+  const [triageDays, setTriageDays] = useState(30);
+  const [ragEnabled, setRagEnabled] = useState(true);
+  const [ragTopK, setRagTopK] = useState(5);
+  const [memTotal, setMemTotal] = useState<number | null>(null);
+  const [llmEnabled, setLlmEnabled] = useState(false);
+  const [llmUrl, setLlmUrl] = useState("https://api.openai.com/v1/chat/completions");
+  const [llmKey, setLlmKey] = useState("");
+  const [llmModel, setLlmModel] = useState("gpt-4o-mini");
+  const [graphEnabled, setGraphEnabled] = useState(true);
+  const [graphWindow, setGraphWindow] = useState(120);
+  const [graphMinHistory, setGraphMinHistory] = useState(15);
   const [error, setError] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -51,7 +63,22 @@ export default function SetupPanel() {
         setNotifyMinSev(s.notify_min_severity || "high");
         setSlaAck({ ...DEFAULT_ACK, ...(s.sla_ack_minutes || {}) });
         setSlaClose({ ...DEFAULT_CLOSE, ...(s.sla_close_minutes || {}) });
+        setTriageScoring(s.triage_scoring_enabled !== false);
+        setTriageDays(s.triage_prior_days || 30);
+        setRagEnabled(s.rag_enabled !== false);
+        setRagTopK(s.rag_top_k || 5);
+        setLlmEnabled(!!s.llm_enabled);
+        setLlmUrl(s.llm_api_url || "https://api.openai.com/v1/chat/completions");
+        setLlmKey("");
+        setLlmModel(s.llm_model || "gpt-4o-mini");
+        setGraphEnabled(s.graph_enabled !== false);
+        setGraphWindow(s.graph_window_minutes || 120);
+        setGraphMinHistory(s.graph_min_history ?? 15);
         setError(null);
+        api
+          .memoryStats()
+          .then((st) => setMemTotal(st.total))
+          .catch(() => setMemTotal(null));
       })
       .catch((e: Error) => setError(e.message));
 
@@ -72,20 +99,48 @@ export default function SetupPanel() {
         notify_min_severity: notifyMinSev,
         sla_ack_minutes: slaAck,
         sla_close_minutes: slaClose,
+        triage_scoring_enabled: triageScoring,
+        triage_prior_days: triageDays,
+        rag_enabled: ragEnabled,
+        rag_top_k: ragTopK,
+        llm_enabled: llmEnabled,
+        llm_api_url: llmUrl.trim() || undefined,
+        llm_model: llmModel.trim() || undefined,
+        graph_enabled: graphEnabled,
+        graph_window_minutes: graphWindow,
+        graph_min_history: graphMinHistory,
       };
       if (vtKey.trim()) payload.vt_api_key = vtKey.trim();
       if (abuseKey.trim()) payload.abuseipdb_api_key = abuseKey.trim();
       if (otxKey.trim()) payload.otx_api_key = otxKey.trim();
       if (notifyUrl.trim()) payload.notify_webhook_url = notifyUrl.trim();
+      if (llmKey.trim()) payload.llm_api_key = llmKey.trim();
       const s = await api.updateSetup(payload);
       setSetup(s);
       setVtKey("");
       setAbuseKey("");
       setOtxKey("");
       setNotifyUrl("");
+      setLlmKey("");
       setSlaAck({ ...DEFAULT_ACK, ...(s.sla_ack_minutes || {}) });
       setSlaClose({ ...DEFAULT_CLOSE, ...(s.sla_close_minutes || {}) });
+      setTriageScoring(s.triage_scoring_enabled !== false);
+      setTriageDays(s.triage_prior_days || 30);
+      setRagEnabled(s.rag_enabled !== false);
+      setRagTopK(s.rag_top_k || 5);
+      setLlmEnabled(!!s.llm_enabled);
+      setLlmUrl(s.llm_api_url || "https://api.openai.com/v1/chat/completions");
+      setLlmModel(s.llm_model || "gpt-4o-mini");
+      setGraphEnabled(s.graph_enabled !== false);
+      setGraphWindow(s.graph_window_minutes || 120);
+      setGraphMinHistory(s.graph_min_history ?? 15);
       setMsg("Impostazioni lab salvate (sessione API).");
+      try {
+        const st = await api.memoryStats();
+        setMemTotal(st.total);
+      } catch {
+        /* ignore */
+      }
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -93,7 +148,7 @@ export default function SetupPanel() {
     }
   };
 
-  const clearKey = async (which: "vt" | "abuseipdb" | "otx" | "notify") => {
+  const clearKey = async (which: "vt" | "abuseipdb" | "otx" | "notify" | "llm") => {
     setBusy(true);
     setMsg(null);
     try {
@@ -102,9 +157,12 @@ export default function SetupPanel() {
       if (which === "abuseipdb") payload.abuseipdb_api_key = "CLEAR";
       if (which === "otx") payload.otx_api_key = "CLEAR";
       if (which === "notify") payload.notify_webhook_url = "CLEAR";
+      if (which === "llm") payload.llm_api_key = "CLEAR";
       const s = await api.updateSetup(payload);
       setSetup(s);
-      setMsg(which === "notify" ? "Webhook notifiche rimosso." : `Key ${which} rimossa dalla sessione.`);
+      if (which === "notify") setMsg("Webhook notifiche rimosso.");
+      else if (which === "llm") setMsg("Key LLM rimossa dalla sessione.");
+      else setMsg(`Key ${which} rimossa dalla sessione.`);
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -343,6 +401,200 @@ export default function SetupPanel() {
               />
             </div>
           ))}
+        </div>
+
+        <h3 className="muted" style={{ marginTop: "1.25rem" }}>
+          Triage scoring
+        </h3>
+        <p className="muted" style={{ fontSize: "0.85rem" }}>
+          Score euristico e hint rumore/minaccia basati su severity, MITRE e chiusure passate
+          (solo suggerimenti, nessun blocco automatico).
+        </p>
+        <div className="setup-grid">
+          <label className="setup-toggle">
+            <input
+              type="checkbox"
+              checked={triageScoring}
+              onChange={(e) => setTriageScoring(e.target.checked)}
+            />
+            Abilita scoring triage
+          </label>
+          <label>
+            Finestra priors (giorni)
+            <input
+              type="number"
+              min={1}
+              max={365}
+              value={triageDays}
+              onChange={(e) => setTriageDays(Number(e.target.value))}
+            />
+          </label>
+        </div>
+
+        <h3 className="muted" style={{ marginTop: "1.25rem" }}>
+          Alert Memory RAG
+        </h3>
+        <p className="muted" style={{ fontSize: "0.85rem" }}>
+          Mini-RAG portatile sugli alert chiusi del tenant (FTS + boost regola/entity). Local-first
+          senza LLM se i priors sono forti; altrimenti contesto compatto al mini-LLM.
+          {memTotal != null ? (
+            <>
+              {" "}
+              Memoria attuale: <span className="mono">{memTotal}</span> casi.
+            </>
+          ) : null}
+        </p>
+        <div className="setup-grid">
+          <label className="setup-toggle">
+            <input
+              type="checkbox"
+              checked={ragEnabled}
+              onChange={(e) => setRagEnabled(e.target.checked)}
+            />
+            Abilita Alert Memory RAG
+          </label>
+          <label>
+            Top-K casi
+            <input
+              type="number"
+              min={1}
+              max={10}
+              value={ragTopK}
+              onChange={(e) => setRagTopK(Number(e.target.value))}
+            />
+          </label>
+        </div>
+        <div className="row" style={{ gap: "0.5rem", marginTop: "0.5rem" }}>
+          <button
+            type="button"
+            className="ghost"
+            disabled={busy}
+            onClick={() =>
+              void (async () => {
+                setBusy(true);
+                try {
+                  const data = await api.memoryExport(500);
+                  const blob = new Blob([JSON.stringify(data, null, 2)], {
+                    type: "application/json",
+                  });
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement("a");
+                  a.href = url;
+                  a.download = `darkgreen-alert-memory-${data.tenant_id}.json`;
+                  a.click();
+                  URL.revokeObjectURL(url);
+                  setMsg(`Export memoria: ${data.count} casi.`);
+                } catch (e) {
+                  setError((e as Error).message);
+                } finally {
+                  setBusy(false);
+                }
+              })()
+            }
+          >
+            Export memoria JSON
+          </button>
+        </div>
+
+        <h3 className="muted" style={{ marginTop: "1.25rem" }}>
+          Alert graph
+        </h3>
+        <p className="muted" style={{ fontSize: "0.85rem" }}>
+          Collegamenti entity/IOC tra alert nella finestra temporale. Sotto la soglia di storia
+          solo same_entity / shared_ioc; sopra anche temporal_follows e mitre_chain.
+        </p>
+        <div className="setup-grid">
+          <label className="setup-toggle">
+            <input
+              type="checkbox"
+              checked={graphEnabled}
+              onChange={(e) => setGraphEnabled(e.target.checked)}
+            />
+            Abilita grafo alert
+          </label>
+          <label>
+            Finestra (minuti)
+            <input
+              type="number"
+              min={5}
+              max={10080}
+              value={graphWindow}
+              onChange={(e) => setGraphWindow(Number(e.target.value))}
+            />
+          </label>
+          <label>
+            Storia minima (alert+memoria)
+            <input
+              type="number"
+              min={0}
+              max={10000}
+              value={graphMinHistory}
+              onChange={(e) => setGraphMinHistory(Number(e.target.value))}
+            />
+          </label>
+        </div>
+
+        <h3 className="muted" style={{ marginTop: "1.25rem" }}>
+          Copilot LLM (opzionale)
+        </h3>
+        <p className="muted" style={{ fontSize: "0.85rem" }}>
+          Endpoint OpenAI-compatible per suggerire disposition e nota di chiusura, arricchito dai
+          casi RAG e dal fingerprint (grafo). Fail soft se disabilitato o key assente. Env:{" "}
+          <span className="mono">LLM_API_KEY</span>, <span className="mono">LLM_API_URL</span>,{" "}
+          <span className="mono">LLM_MODEL</span>.
+        </p>
+        <div className="setup-grid">
+          <label className="setup-toggle">
+            <input
+              type="checkbox"
+              checked={llmEnabled}
+              onChange={(e) => setLlmEnabled(e.target.checked)}
+            />
+            Abilita Copilot LLM
+          </label>
+          <label>
+            Model
+            <input
+              type="text"
+              value={llmModel}
+              onChange={(e) => setLlmModel(e.target.value)}
+              placeholder="gpt-4o-mini"
+            />
+          </label>
+          <label style={{ gridColumn: "1 / -1" }}>
+            API URL
+            <input
+              type="text"
+              value={llmUrl}
+              onChange={(e) => setLlmUrl(e.target.value)}
+              placeholder="https://api.openai.com/v1/chat/completions"
+            />
+          </label>
+          <label style={{ gridColumn: "1 / -1" }}>
+            API key{" "}
+            <span className="mono muted">
+              {setup?.llm_configured
+                ? setup.llm_api_key_masked || "configurata"
+                : "non configurata"}
+            </span>
+            <input
+              type="password"
+              autoComplete="off"
+              value={llmKey}
+              onChange={(e) => setLlmKey(e.target.value)}
+              placeholder="sk-…"
+            />
+            {setup?.llm_configured ? (
+              <button
+                type="button"
+                className="ghost"
+                disabled={busy}
+                onClick={() => void clearKey("llm")}
+              >
+                CLEAR
+              </button>
+            ) : null}
+          </label>
         </div>
 
         <div className="row" style={{ gap: "0.5rem", marginTop: "1rem" }}>

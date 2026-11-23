@@ -22,6 +22,16 @@ from .rule_validate import ALLOWED_SEVERITIES, ALLOWED_TYPES
 AUTHOR_RE = re.compile(r"^[\w .@-]{1,64}$")
 
 AlertStatusLiteral = Literal["open", "acked", "in_progress", "closed"]
+AlertDispositionLiteral = Literal[
+    "true_positive",
+    "false_positive",
+    "benign",
+    "duplicate",
+    "tuning_needed",
+]
+ALERT_DISPOSITIONS = frozenset(
+    {"true_positive", "false_positive", "benign", "duplicate", "tuning_needed"}
+)
 
 
 class IngestItem(BaseModel):
@@ -150,6 +160,8 @@ class CommentCreate(BaseModel):
 
 class StatusUpdate(BaseModel):
     status: AlertStatusLiteral
+    disposition: AlertDispositionLiteral | None = None
+    closure_note: str | None = Field(default=None, max_length=4000)
 
 
 ALERT_STATUSES = frozenset({"open", "acked", "in_progress", "closed"})
@@ -171,6 +183,11 @@ class AlertOut(BaseModel):
     created_at: datetime
     acked_at: datetime | None = None
     closed_at: datetime | None = None
+    disposition: str | None = None
+    closure_note: str | None = None
+    closed_by: str | None = None
+    risk_score: int | None = None
+    noise_hint: str | None = None
     sla_ack_status: str | None = None
     sla_ack_target_minutes: int | None = None
     sla_ack_due_at: datetime | None = None
@@ -192,10 +209,97 @@ class AuditOut(BaseModel):
     actor: str
     from_status: str
     to_status: str
+    note: str | None = None
     created_at: datetime
 
     class Config:
         from_attributes = True
+
+
+class SimilarAlertOut(BaseModel):
+    id: int
+    rule_id: str
+    title: str
+    severity: str
+    status: str
+    disposition: str | None = None
+    created_at: datetime
+    closed_at: datetime | None = None
+    noise_hint: str | None = None
+    risk_score: int | None = None
+
+
+class MemoryCaseOut(BaseModel):
+    alert_id: int
+    rule_id: str = ""
+    title: str = ""
+    disposition: str | None = None
+    note_excerpt: str = ""
+    entity_key: str | None = None
+    mitre: str | None = None
+    score: float = 0.0
+    closed_at: str | None = None
+
+
+class ConnectedAlertOut(BaseModel):
+    id: int
+    title: str = ""
+    rule_id: str | None = None
+    severity: str | None = None
+    status: str | None = None
+    disposition: str | None = None
+    mitre: str | None = None
+    relation: str
+    score: int = 0
+    direction: str = "out"
+    shared_keys: list[str] = Field(default_factory=list)
+
+
+class AlertLinksOut(BaseModel):
+    alert_id: int
+    connected: list[ConnectedAlertOut] = Field(default_factory=list)
+    count: int = 0
+
+
+class TriageBriefOut(BaseModel):
+    alert_id: int
+    summary: str
+    entities: dict[str, Any] = Field(default_factory=dict)
+    pivot_query: str | None = None
+    similar_count: int = 0
+    similar_fp: int = 0
+    similar_tp: int = 0
+    sla: dict[str, Any] = Field(default_factory=dict)
+    noise_hint: str | None = None
+    risk_score: int | None = None
+    mitre: str | None = None
+    threat_brief: str | None = None
+    cases: list[MemoryCaseOut] = Field(default_factory=list)
+    connected: list[ConnectedAlertOut] = Field(default_factory=list)
+    fingerprint: dict[str, Any] = Field(default_factory=dict)
+
+
+class CopilotSuggestOut(BaseModel):
+    available: bool = False
+    suggested_disposition: str | None = None
+    suggested_note: str | None = None
+    rationale: str | None = None
+    message: str | None = None
+    source: str | None = None
+    citations: list[int] = Field(default_factory=list)
+    cases: list[MemoryCaseOut] = Field(default_factory=list)
+    related_alert_ids: list[int] = Field(default_factory=list)
+    relation_hint: str | None = None
+    brief: TriageBriefOut | None = None
+
+
+class MemoryStatsOut(BaseModel):
+    tenant_id: str
+    total: int = 0
+    by_disposition: dict[str, int] = Field(default_factory=dict)
+    last_closed_at: str | None = None
+    rag_enabled: bool = True
+    rag_top_k: int = 5
 
 
 class VtEnrichOut(BaseModel):
@@ -335,6 +439,18 @@ class SetupOut(BaseModel):
     notify_min_severity: str = "high"
     sla_ack_minutes: dict[str, int] = Field(default_factory=dict)
     sla_close_minutes: dict[str, int] = Field(default_factory=dict)
+    triage_scoring_enabled: bool = True
+    triage_prior_days: int = 30
+    rag_enabled: bool = True
+    rag_top_k: int = 5
+    llm_enabled: bool = False
+    llm_configured: bool = False
+    llm_api_key_masked: str | None = None
+    llm_api_url: str = "https://api.openai.com/v1/chat/completions"
+    llm_model: str = "gpt-4o-mini"
+    graph_enabled: bool = True
+    graph_window_minutes: int = 120
+    graph_min_history: int = 15
 
 
 class SetupUpdate(BaseModel):
@@ -350,6 +466,17 @@ class SetupUpdate(BaseModel):
     notify_min_severity: str | None = Field(default=None, max_length=16)
     sla_ack_minutes: dict[str, int] | None = None
     sla_close_minutes: dict[str, int] | None = None
+    triage_scoring_enabled: bool | None = None
+    triage_prior_days: int | None = Field(default=None, ge=1, le=365)
+    rag_enabled: bool | None = None
+    rag_top_k: int | None = Field(default=None, ge=1, le=10)
+    llm_enabled: bool | None = None
+    llm_api_url: str | None = Field(default=None, max_length=2048)
+    llm_api_key: str | None = Field(default=None, max_length=512)
+    llm_model: str | None = Field(default=None, max_length=128)
+    graph_enabled: bool | None = None
+    graph_window_minutes: int | None = Field(default=None, ge=5, le=10080)
+    graph_min_history: int | None = Field(default=None, ge=0, le=10000)
 
 
 class ProviderEnrichOut(BaseModel):

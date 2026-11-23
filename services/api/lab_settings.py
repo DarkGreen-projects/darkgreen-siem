@@ -31,10 +31,12 @@ _KEY_MAP = {
 }
 
 
-def mask_secret(value: str | None) -> str | None:
+def mask_secret(value: str | None, *, reveal_tail: bool = True) -> str | None:
     raw = (value or "").strip()
     if not raw:
         return None
+    if not reveal_tail:
+        return "****"
     if len(raw) <= 4:
         return "****"
     return f"****{raw[-4:]}"
@@ -57,10 +59,22 @@ class LabState:
     notify_min_severity: str = "high"
     sla_ack_minutes: dict[str, int] = field(default_factory=default_sla_ack)
     sla_close_minutes: dict[str, int] = field(default_factory=default_sla_close)
+    triage_scoring_enabled: bool = True
+    triage_prior_days: int = 30
+    rag_enabled: bool = True
+    rag_top_k: int = 5
+    llm_enabled: bool = False
+    llm_api_url: str = "https://api.openai.com/v1/chat/completions"
+    llm_api_key: str = ""
+    llm_model: str = "gpt-4o-mini"
+    graph_enabled: bool = True
+    graph_window_minutes: int = 120
+    graph_min_history: int = 15
     _vt_cleared: bool = False
     _abuse_cleared: bool = False
     _otx_cleared: bool = False
     _notify_cleared: bool = False
+    _llm_cleared: bool = False
 
 
 _lock = Lock()
@@ -96,6 +110,20 @@ def _from_settings(s: Settings) -> LabState:
         .lower(),
         sla_ack_minutes=ack,
         sla_close_minutes=close,
+        triage_scoring_enabled=True,
+        triage_prior_days=30,
+        rag_enabled=True,
+        rag_top_k=5,
+        llm_enabled=bool(getattr(s, "llm_enabled", False)),
+        llm_api_url=(
+            getattr(s, "llm_api_url", None)
+            or "https://api.openai.com/v1/chat/completions"
+        ).strip(),
+        llm_api_key=(getattr(s, "llm_api_key", "") or "").strip(),
+        llm_model=(getattr(s, "llm_model", None) or "gpt-4o-mini").strip(),
+        graph_enabled=True,
+        graph_window_minutes=120,
+        graph_min_history=15,
     )
 
 
@@ -143,17 +171,19 @@ def load_lab_settings_from_db(db: Session) -> LabState:
                 "true",
                 "yes",
             }
+        from .secret_crypto import unseal
+
         if "vt_api_key" in rows:
-            state.vt_api_key = rows["vt_api_key"]
+            state.vt_api_key = unseal(rows["vt_api_key"])
             state._vt_cleared = rows["vt_api_key"] == ""
         if "abuseipdb_api_key" in rows:
-            state.abuseipdb_api_key = rows["abuseipdb_api_key"]
+            state.abuseipdb_api_key = unseal(rows["abuseipdb_api_key"])
             state._abuse_cleared = rows["abuseipdb_api_key"] == ""
         if "otx_api_key" in rows:
-            state.otx_api_key = rows["otx_api_key"]
+            state.otx_api_key = unseal(rows["otx_api_key"])
             state._otx_cleared = rows["otx_api_key"] == ""
         if "notify_webhook_url" in rows:
-            state.notify_webhook_url = rows["notify_webhook_url"]
+            state.notify_webhook_url = unseal(rows["notify_webhook_url"])
             state._notify_cleared = rows["notify_webhook_url"] == ""
         if "notify_format" in rows and rows["notify_format"]:
             state.notify_format = rows["notify_format"].strip().lower()
@@ -173,17 +203,58 @@ def load_lab_settings_from_db(db: Session) -> LabState:
                 )
             except ValueError:
                 pass
+        if "triage_scoring_enabled" in rows:
+            state.triage_scoring_enabled = rows["triage_scoring_enabled"].lower() in {
+                "1",
+                "true",
+                "yes",
+            }
+        if "triage_prior_days" in rows:
+            try:
+                state.triage_prior_days = max(1, min(365, int(rows["triage_prior_days"])))
+            except ValueError:
+                pass
+        if "rag_enabled" in rows:
+            state.rag_enabled = rows["rag_enabled"].lower() in {"1", "true", "yes"}
+        if "rag_top_k" in rows:
+            try:
+                state.rag_top_k = max(1, min(10, int(rows["rag_top_k"])))
+            except ValueError:
+                pass
+        if "llm_enabled" in rows:
+            state.llm_enabled = rows["llm_enabled"].lower() in {"1", "true", "yes"}
+        if "llm_api_url" in rows and rows["llm_api_url"]:
+            state.llm_api_url = rows["llm_api_url"].strip()
+        if "llm_api_key" in rows:
+            state.llm_api_key = unseal(rows["llm_api_key"])
+            state._llm_cleared = rows["llm_api_key"] == ""
+        if "llm_model" in rows and rows["llm_model"]:
+            state.llm_model = rows["llm_model"].strip()
+        if "graph_enabled" in rows:
+            state.graph_enabled = rows["graph_enabled"].lower() in {"1", "true", "yes"}
+        if "graph_window_minutes" in rows:
+            try:
+                state.graph_window_minutes = max(5, min(10080, int(rows["graph_window_minutes"])))
+            except ValueError:
+                pass
+        if "graph_min_history" in rows:
+            try:
+                state.graph_min_history = max(0, min(10000, int(rows["graph_min_history"])))
+            except ValueError:
+                pass
         return state
 
 
 def _persist_key(db: Session, key: str, value: str) -> None:
     from .models import LabSetting
+    from .secret_crypto import is_sensitive_key, seal
 
+    stored = seal(value) if is_sensitive_key(key) and value else value
     row = db.get(LabSetting, key)
     if row is None:
-        db.add(LabSetting(key=key, value=value))
+        db.add(LabSetting(key=key, value=stored))
     else:
-        row.value = value
+        row.value = stored
 
 
 def persist_lab_state(db: Session, state: LabState | None = None) -> None:
@@ -205,6 +276,21 @@ def persist_lab_state(db: Session, state: LabState | None = None) -> None:
         _persist_key(
             db, "sla_close_minutes", json.dumps(s.sla_close_minutes or default_sla_close())
         )
+        _persist_key(
+            db,
+            "triage_scoring_enabled",
+            "true" if s.triage_scoring_enabled else "false",
+        )
+        _persist_key(db, "triage_prior_days", str(int(s.triage_prior_days or 30)))
+        _persist_key(db, "rag_enabled", "true" if s.rag_enabled else "false")
+        _persist_key(db, "rag_top_k", str(int(s.rag_top_k or 5)))
+        _persist_key(db, "llm_enabled", "true" if s.llm_enabled else "false")
+        _persist_key(db, "llm_api_url", s.llm_api_url or "")
+        _persist_key(db, "llm_api_key", s.llm_api_key or "")
+        _persist_key(db, "llm_model", s.llm_model or "gpt-4o-mini")
+        _persist_key(db, "graph_enabled", "true" if s.graph_enabled else "false")
+        _persist_key(db, "graph_window_minutes", str(int(s.graph_window_minutes or 120)))
+        _persist_key(db, "graph_min_history", str(int(s.graph_min_history or 15)))
         db.commit()
 
 
@@ -235,6 +321,17 @@ def update_lab_state(
     notify_min_severity: str | None = None,
     sla_ack_minutes: dict[str, int] | None = None,
     sla_close_minutes: dict[str, int] | None = None,
+    triage_scoring_enabled: bool | None = None,
+    triage_prior_days: int | None = None,
+    rag_enabled: bool | None = None,
+    rag_top_k: int | None = None,
+    llm_enabled: bool | None = None,
+    llm_api_url: str | None = None,
+    llm_api_key: str | None = None,
+    llm_model: str | None = None,
+    graph_enabled: bool | None = None,
+    graph_window_minutes: int | None = None,
+    graph_min_history: int | None = None,
     db: Session | None = None,
 ) -> LabState:
     state = get_lab_state()
@@ -268,6 +365,12 @@ def update_lab_state(
         state.otx_api_key = _apply_key(
             state.otx_api_key, otx_api_key, cleared_attr="_otx_cleared", state=state
         )
+        if notify_webhook_url is not None and notify_webhook_url.strip():
+            text = notify_webhook_url.strip()
+            if text.upper() != CLEAR_TOKEN:
+                from .url_safety import validate_egress_url
+
+                validate_egress_url(text, purpose="notify webhook")
         state.notify_webhook_url = _apply_key(
             state.notify_webhook_url,
             notify_webhook_url,
@@ -293,6 +396,41 @@ def update_lab_state(
                 sla_close_minutes,
                 defaults=state.sla_close_minutes or DEFAULT_SLA_CLOSE_MINUTES,
             )
+        if triage_scoring_enabled is not None:
+            state.triage_scoring_enabled = bool(triage_scoring_enabled)
+        if triage_prior_days is not None:
+            if triage_prior_days < 1 or triage_prior_days > 365:
+                raise ValueError("triage_prior_days must be 1..365")
+            state.triage_prior_days = triage_prior_days
+        if rag_enabled is not None:
+            state.rag_enabled = bool(rag_enabled)
+        if rag_top_k is not None:
+            if rag_top_k < 1 or rag_top_k > 10:
+                raise ValueError("rag_top_k must be 1..10")
+            state.rag_top_k = int(rag_top_k)
+        if llm_enabled is not None:
+            state.llm_enabled = bool(llm_enabled)
+        if llm_api_url is not None and llm_api_url.strip():
+            from .url_safety import validate_egress_url
+
+            state.llm_api_url = validate_egress_url(
+                llm_api_url.strip(), purpose="LLM"
+            )
+        state.llm_api_key = _apply_key(
+            state.llm_api_key, llm_api_key, cleared_attr="_llm_cleared", state=state
+        )
+        if llm_model is not None and llm_model.strip():
+            state.llm_model = llm_model.strip()[:128]
+        if graph_enabled is not None:
+            state.graph_enabled = bool(graph_enabled)
+        if graph_window_minutes is not None:
+            if graph_window_minutes < 5 or graph_window_minutes > 10080:
+                raise ValueError("graph_window_minutes must be 5..10080")
+            state.graph_window_minutes = int(graph_window_minutes)
+        if graph_min_history is not None:
+            if graph_min_history < 0 or graph_min_history > 10000:
+                raise ValueError("graph_min_history must be 0..10000")
+            state.graph_min_history = int(graph_min_history)
     if db is not None:
         persist_lab_state(db, state)
     return state
@@ -315,9 +453,22 @@ def enrichment_keys_public(state: LabState | None = None) -> dict:
         "otx_configured": bool(s.otx_api_key),
         "otx_api_key_masked": mask_secret(s.otx_api_key),
         "notify_webhook_configured": bool(s.notify_webhook_url),
-        "notify_webhook_url_masked": mask_secret(s.notify_webhook_url),
+        "notify_webhook_url_masked": mask_secret(s.notify_webhook_url, reveal_tail=False),
         "notify_format": s.notify_format or "slack",
         "notify_min_severity": s.notify_min_severity or "high",
         "sla_ack_minutes": dict(s.sla_ack_minutes or default_sla_ack()),
         "sla_close_minutes": dict(s.sla_close_minutes or default_sla_close()),
+        "triage_scoring_enabled": bool(s.triage_scoring_enabled),
+        "triage_prior_days": int(s.triage_prior_days or 30),
+        "rag_enabled": bool(getattr(s, "rag_enabled", True)),
+        "rag_top_k": int(getattr(s, "rag_top_k", 5) or 5),
+        "llm_enabled": bool(s.llm_enabled),
+        "llm_configured": bool(s.llm_api_key),
+        "llm_api_key_masked": mask_secret(s.llm_api_key, reveal_tail=False),
+        "llm_api_url": s.llm_api_url
+        or "https://api.openai.com/v1/chat/completions",
+        "llm_model": s.llm_model or "gpt-4o-mini",
+        "graph_enabled": bool(getattr(s, "graph_enabled", True)),
+        "graph_window_minutes": int(getattr(s, "graph_window_minutes", 120) or 120),
+        "graph_min_history": int(getattr(s, "graph_min_history", 15) or 15),
     }

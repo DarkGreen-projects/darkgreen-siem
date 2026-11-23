@@ -2,6 +2,7 @@ const TOKEN_KEY = "darkgreen-siem.auth-token";
 const USER_KEY = "darkgreen-siem.auth-user";
 const ROLE_KEY = "darkgreen-siem.auth-role";
 const TENANT_KEY = "darkgreen-siem.auth-tenant";
+const EXP_KEY = "darkgreen-siem.auth-exp";
 
 export type SiemEvent = {
   id: number;
@@ -50,6 +51,11 @@ export type Alert = {
   created_at: string;
   acked_at: string | null;
   closed_at?: string | null;
+  disposition?: string | null;
+  closure_note?: string | null;
+  closed_by?: string | null;
+  risk_score?: number | null;
+  noise_hint?: string | null;
   sla_ack_status?: string | null;
   sla_ack_target_minutes?: number | null;
   sla_ack_due_at?: string | null;
@@ -68,7 +74,101 @@ export type AlertAuditEntry = {
   actor: string;
   from_status: string;
   to_status: string;
+  note?: string | null;
   created_at: string;
+};
+
+export type SimilarAlert = {
+  id: number;
+  rule_id: string;
+  title: string;
+  severity: string;
+  status: string;
+  disposition?: string | null;
+  created_at: string;
+  closed_at?: string | null;
+  noise_hint?: string | null;
+  risk_score?: number | null;
+};
+
+export type AlertDisposition =
+  | "true_positive"
+  | "false_positive"
+  | "benign"
+  | "duplicate"
+  | "tuning_needed";
+
+export type MemoryCase = {
+  alert_id: number;
+  rule_id?: string;
+  title?: string;
+  disposition?: string | null;
+  note_excerpt?: string;
+  entity_key?: string | null;
+  mitre?: string | null;
+  score?: number;
+  closed_at?: string | null;
+};
+
+export type ConnectedAlert = {
+  id: number;
+  title?: string;
+  rule_id?: string | null;
+  severity?: string | null;
+  status?: string | null;
+  disposition?: string | null;
+  mitre?: string | null;
+  relation: string;
+  score?: number;
+  direction?: string;
+  shared_keys?: string[];
+};
+
+export type AlertLinks = {
+  alert_id: number;
+  connected: ConnectedAlert[];
+  count: number;
+};
+
+export type TriageBrief = {
+  alert_id: number;
+  summary: string;
+  entities: Record<string, string>;
+  pivot_query?: string | null;
+  similar_count: number;
+  similar_fp: number;
+  similar_tp: number;
+  sla: Record<string, string | null | undefined>;
+  noise_hint?: string | null;
+  risk_score?: number | null;
+  mitre?: string | null;
+  threat_brief?: string | null;
+  cases?: MemoryCase[];
+  connected?: ConnectedAlert[];
+  fingerprint?: Record<string, unknown>;
+};
+
+export type CopilotSuggest = {
+  available: boolean;
+  suggested_disposition?: string | null;
+  suggested_note?: string | null;
+  rationale?: string | null;
+  message?: string | null;
+  source?: string | null;
+  citations?: number[];
+  cases?: MemoryCase[];
+  related_alert_ids?: number[];
+  relation_hint?: string | null;
+  brief?: TriageBrief | null;
+};
+
+export type MemoryStats = {
+  tenant_id: string;
+  total: number;
+  by_disposition: Record<string, number>;
+  last_closed_at?: string | null;
+  rag_enabled: boolean;
+  rag_top_k: number;
 };
 
 export type VtEnrich = {
@@ -181,6 +281,18 @@ export type LabSetup = {
   notify_min_severity?: string;
   sla_ack_minutes?: Record<string, number>;
   sla_close_minutes?: Record<string, number>;
+  triage_scoring_enabled?: boolean;
+  triage_prior_days?: number;
+  rag_enabled?: boolean;
+  rag_top_k?: number;
+  llm_enabled?: boolean;
+  llm_configured?: boolean;
+  llm_api_key_masked?: string | null;
+  llm_api_url?: string;
+  llm_model?: string;
+  graph_enabled?: boolean;
+  graph_window_minutes?: number;
+  graph_min_history?: number;
 };
 
 export type DryRunHit = {
@@ -211,8 +323,37 @@ export const SOURCE_COLORS: Record<string, string> = {
   siem_export: "#f38ba8",
 };
 
+export function clearAuthSession() {
+  localStorage.removeItem(TOKEN_KEY);
+  localStorage.removeItem(USER_KEY);
+  localStorage.removeItem(ROLE_KEY);
+  localStorage.removeItem(TENANT_KEY);
+  localStorage.removeItem(EXP_KEY);
+}
+
+export function getStoredExpiresAt(): number | null {
+  try {
+    const raw = localStorage.getItem(EXP_KEY);
+    if (!raw) return null;
+    const n = Number(raw);
+    return Number.isFinite(n) ? n : null;
+  } catch {
+    return null;
+  }
+}
+
+export function isSessionExpired(): boolean {
+  const exp = getStoredExpiresAt();
+  if (exp == null) return false;
+  return Math.floor(Date.now() / 1000) >= exp;
+}
+
 export function getStoredToken(): string | null {
   try {
+    if (isSessionExpired()) {
+      clearAuthSession();
+      return null;
+    }
     return localStorage.getItem(TOKEN_KEY);
   } catch {
     return null;
@@ -263,19 +404,14 @@ export function setAuthSession(
   token: string,
   username: string,
   role?: string,
-  tenantId?: string
+  tenantId?: string,
+  expiresAt?: number
 ) {
   localStorage.setItem(TOKEN_KEY, token);
   localStorage.setItem(USER_KEY, username);
   if (role) localStorage.setItem(ROLE_KEY, role);
   if (tenantId) localStorage.setItem(TENANT_KEY, tenantId);
-}
-
-export function clearAuthSession() {
-  localStorage.removeItem(TOKEN_KEY);
-  localStorage.removeItem(USER_KEY);
-  localStorage.removeItem(ROLE_KEY);
-  localStorage.removeItem(TENANT_KEY);
+  if (expiresAt != null) localStorage.setItem(EXP_KEY, String(expiresAt));
 }
 
 function authHeaders(extra?: Record<string, string>): Record<string, string> {
@@ -349,7 +485,13 @@ export const api = {
       throw new Error(detail);
     }
     const data = (await res.json()) as LoginResult;
-    setAuthSession(data.token, data.username, data.role, data.tenant_id);
+    setAuthSession(
+      data.token,
+      data.username,
+      data.role,
+      data.tenant_id,
+      data.expires_at
+    );
     return data;
   },
   me: () => getJson<AuthMe>("/api/auth/me"),
@@ -391,15 +533,39 @@ export const api = {
     if (!res.ok) await ruleMutationError(res);
     return res.json() as Promise<Rule>;
   },
-  alerts: (opts?: { status?: string; mitre?: string; sla?: string }) => {
+  alerts: (opts?: { status?: string; mitre?: string; sla?: string; disposition?: string }) => {
     const sp = new URLSearchParams();
     if (opts?.status) sp.set("status", opts.status);
     if (opts?.mitre) sp.set("mitre", opts.mitre);
     if (opts?.sla) sp.set("sla", opts.sla);
+    if (opts?.disposition) sp.set("disposition", opts.disposition);
     const q = sp.toString();
     return getJson<Alert[]>(q ? `/api/alerts?${q}` : "/api/alerts");
   },
+  alertQueue: (limit = 50) => getJson<Alert[]>(`/api/alerts/queue?limit=${limit}`),
   getAlert: (id: number) => getJson<Alert>(`/api/alerts/${id}`),
+  similarAlerts: (id: number) => getJson<SimilarAlert[]>(`/api/alerts/${id}/similar`),
+  alertBrief: (id: number) => getJson<TriageBrief>(`/api/alerts/${id}/brief`),
+  alertLinks: (id: number) => getJson<AlertLinks>(`/api/alerts/${id}/links`),
+  copilotSuggest: async (id: number) => {
+    const res = await fetch(`/api/alerts/${id}/copilot-suggest`, {
+      method: "POST",
+      headers: authHeaders(),
+    });
+    return handleRes<CopilotSuggest>(res);
+  },
+  memoryStats: () => getJson<MemoryStats>("/api/memory/stats"),
+  memoryExport: async (limit = 500) => {
+    const res = await fetch(`/api/memory/export?limit=${limit}`, {
+      headers: authHeaders(),
+    });
+    return handleRes<{
+      version: number;
+      tenant_id: string;
+      count: number;
+      cases: MemoryCase[];
+    }>(res);
+  },
   search: (params: {
     q?: string;
     source_type?: string;
@@ -416,11 +582,19 @@ export const api = {
       `/api/events/search?${sp}`
     );
   },
-  setAlertStatus: async (id: number, status: AlertStatus | string) => {
+  setAlertStatus: async (
+    id: number,
+    status: AlertStatus | string,
+    opts?: { disposition?: AlertDisposition | string; closure_note?: string }
+  ) => {
     const res = await fetch(`/api/alerts/${id}/status`, {
       method: "PATCH",
       headers: authHeaders({ "Content-Type": "application/json" }),
-      body: JSON.stringify({ status }),
+      body: JSON.stringify({
+        status,
+        disposition: opts?.disposition,
+        closure_note: opts?.closure_note,
+      }),
     });
     return handleRes<Alert>(res);
   },
@@ -462,6 +636,17 @@ export const api = {
     notify_min_severity?: string;
     sla_ack_minutes?: Record<string, number>;
     sla_close_minutes?: Record<string, number>;
+    triage_scoring_enabled?: boolean;
+    triage_prior_days?: number;
+    rag_enabled?: boolean;
+    rag_top_k?: number;
+    llm_enabled?: boolean;
+    llm_api_url?: string;
+    llm_api_key?: string;
+    llm_model?: string;
+    graph_enabled?: boolean;
+    graph_window_minutes?: number;
+    graph_min_history?: number;
   }) => {
     const res = await fetch("/api/setup", {
       method: "PATCH",

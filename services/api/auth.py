@@ -88,9 +88,11 @@ def verify_user_token(settings: Settings, token: str) -> tuple[str, str, str] | 
         text = payload.decode("utf-8")
         parts = text.split("|")
         if len(parts) == 2:
-            # legacy username|exp
+            # legacy username|exp — rejected when STRICT_SECRETS
+            if getattr(settings, "strict_secrets", False):
+                return None
             username, exp_s = parts
-            role, tenant_id = "analyst", settings.default_tenant_id
+            role, tenant_id = "viewer", settings.default_tenant_id
         elif len(parts) == 4:
             username, role, tenant_id, exp_s = parts
         else:
@@ -233,8 +235,13 @@ def require_auth(
                     detail="Invalid or expired token",
                     headers={"WWW-Authenticate": "Bearer"},
                 )
-            # Empty users table: allow token claims (bootstrap race)
-            return AuthPrincipal(username=username, kind="user", role=role, tenant_id=tenant_id)
+            # Empty users table (bootstrap race): never trust elevated role from token
+            return AuthPrincipal(
+                username=username,
+                kind="user",
+                role="viewer",
+                tenant_id=tenant_id or settings.default_tenant_id,
+            )
         if not row.active:
             raise HTTPException(status_code=401, detail="User disabled")
         return AuthPrincipal(

@@ -69,12 +69,19 @@ def notify_alert_opened(alert: Any) -> bool:
     fmt = (getattr(state, "notify_format", None) or "slack").strip().lower()
     payload = _teams_payload(alert) if fmt == "teams" else _slack_payload(alert)
     try:
-        with httpx.Client(timeout=5.0) as client:
-            resp = client.post(url, json=payload)
+        from .url_safety import validate_egress_url
+
+        safe_url = validate_egress_url(url, purpose="notify webhook")
+    except Exception as exc:
+        logger.warning("Notify webhook URL rejected: %s", type(exc).__name__)
+        return False
+    try:
+        with httpx.Client(timeout=5.0, follow_redirects=False) as client:
+            resp = client.post(safe_url, json=payload)
             if resp.status_code >= 400:
-                logger.warning("Notify webhook HTTP %s: %s", resp.status_code, resp.text[:200])
+                logger.warning("Notify webhook HTTP %s", resp.status_code)
                 return False
         return True
     except Exception as exc:
-        logger.warning("Notify webhook failed: %s", exc)
+        logger.warning("Notify webhook failed: %s", type(exc).__name__)
         return False

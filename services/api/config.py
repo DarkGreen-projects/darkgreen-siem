@@ -14,11 +14,16 @@ class Settings(BaseSettings):
     samples_dir: str = "samples"
     syslog_host: str = "0.0.0.0"
     syslog_port: int = 5140
+    syslog_shared_secret: str = ""
     seed_on_start: bool = True
     cors_origins: str = "http://localhost:8080,http://127.0.0.1:8080"
     rule_interval_sec: int = 15
     auth_enabled: bool = True
     allow_insecure_no_auth: bool = False
+    strict_secrets: bool = False
+    disable_openapi: bool = False
+    allow_insecure_webhooks: bool = False
+    egress_host_allowlist: str = ""
     run_background_jobs: bool = True
     demo_username: str = "analyst"
     demo_password: str = "darkgreen"
@@ -38,6 +43,10 @@ class Settings(BaseSettings):
     notify_min_severity: str = "high"
     sla_ack_minutes: str = ""  # JSON object or empty = defaults
     sla_close_minutes: str = ""
+    llm_enabled: bool = False
+    llm_api_url: str = "https://api.openai.com/v1/chat/completions"
+    llm_api_key: str = ""
+    llm_model: str = "gpt-4o-mini"
     default_tenant_id: str = "lab"
     default_tenant_name: str = "Lab"
 
@@ -55,6 +64,8 @@ def get_settings() -> Settings:
         data["syslog_host"] = os.environ["SYSLOG_HOST"]
     if os.getenv("SYSLOG_PORT"):
         data["syslog_port"] = int(os.environ["SYSLOG_PORT"])
+    if os.getenv("SYSLOG_SHARED_SECRET"):
+        data["syslog_shared_secret"] = os.environ["SYSLOG_SHARED_SECRET"]
     if os.getenv("SEED_ON_START"):
         data["seed_on_start"] = os.environ["SEED_ON_START"].lower() in {"1", "true", "yes"}
     if os.getenv("CORS_ORIGINS"):
@@ -69,6 +80,18 @@ def get_settings() -> Settings:
             "true",
             "yes",
         }
+    if os.getenv("STRICT_SECRETS"):
+        data["strict_secrets"] = os.environ["STRICT_SECRETS"].lower() in {"1", "true", "yes"}
+    if os.getenv("DISABLE_OPENAPI"):
+        data["disable_openapi"] = os.environ["DISABLE_OPENAPI"].lower() in {"1", "true", "yes"}
+    if os.getenv("ALLOW_INSECURE_WEBHOOKS"):
+        data["allow_insecure_webhooks"] = os.environ["ALLOW_INSECURE_WEBHOOKS"].lower() in {
+            "1",
+            "true",
+            "yes",
+        }
+    if os.getenv("EGRESS_HOST_ALLOWLIST"):
+        data["egress_host_allowlist"] = os.environ["EGRESS_HOST_ALLOWLIST"]
     if os.getenv("RUN_BACKGROUND_JOBS"):
         data["run_background_jobs"] = os.environ["RUN_BACKGROUND_JOBS"].lower() in {
             "1",
@@ -115,8 +138,53 @@ def get_settings() -> Settings:
         data["sla_ack_minutes"] = os.environ["SLA_ACK_MINUTES"]
     if os.getenv("SLA_CLOSE_MINUTES"):
         data["sla_close_minutes"] = os.environ["SLA_CLOSE_MINUTES"]
+    if os.getenv("LLM_ENABLED"):
+        data["llm_enabled"] = os.environ["LLM_ENABLED"].lower() in {"1", "true", "yes"}
+    if os.getenv("LLM_API_URL"):
+        data["llm_api_url"] = os.environ["LLM_API_URL"]
+    if os.getenv("LLM_API_KEY"):
+        data["llm_api_key"] = os.environ["LLM_API_KEY"]
+    if os.getenv("LLM_MODEL"):
+        data["llm_model"] = os.environ["LLM_MODEL"]
     if os.getenv("DEFAULT_TENANT_ID"):
         data["default_tenant_id"] = os.environ["DEFAULT_TENANT_ID"]
     if os.getenv("DEFAULT_TENANT_NAME"):
         data["default_tenant_name"] = os.environ["DEFAULT_TENANT_NAME"]
     return Settings(**data)
+
+
+WEAK_AUTH_SECRETS = frozenset(
+    {
+        "darkgreen-siem-dev-secret-change-me",
+        "darkgreen-siem-compose-secret",
+    }
+)
+WEAK_API_TOKENS = frozenset(
+    {
+        "dg-lab-token-change-me",
+        "dg-lab-token-compose",
+    }
+)
+
+
+def secrets_are_weak(settings: Settings | None = None) -> bool:
+    s = settings or get_settings()
+    return (s.auth_secret or "") in WEAK_AUTH_SECRETS or (
+        s.siem_api_token or ""
+    ) in WEAK_API_TOKENS
+
+
+def enforce_startup_secrets(settings: Settings | None = None) -> None:
+    """Fail closed when STRICT_SECRETS and defaults remain; else warn."""
+    import logging
+
+    s = settings or get_settings()
+    if not secrets_are_weak(s):
+        return
+    msg = (
+        "Weak AUTH_SECRET / SIEM_API_TOKEN defaults detected. "
+        "Rotate before any non-lab exposure."
+    )
+    if s.strict_secrets:
+        raise RuntimeError(f"STRICT_SECRETS=true: {msg}")
+    logging.getLogger("darkgreen-siem").warning(msg)
