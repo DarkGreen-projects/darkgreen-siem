@@ -280,16 +280,19 @@ Screenshot aggiornato dalla dashboard live dopo populate di test (~572 eventi / 
 
 ### Bug e falli corretti in questa versione
 
-| Area | Problema | Fix |
-|------|----------|-----|
-| Schema Postgres | Volume lab vecchio: `ingest_stats` senza `tenant_id` → `GET /api/sources` **500** | Migrazione ALTER + PK `(tenant_id, channel)` in `init_db` |
-| Schema alerts | `acked_at` sul modello ma assente da `_ALTERS` (rischio su DB legacy) | Colonna aggiunta agli ALTER |
-| Docker API | Download `connect-installer.zip` / `windows-agent.zip` → **404** | `COPY tools/...` nel Dockerfile API |
-| Build web | TypeScript: step `enrich` non tipizzato in `RuleCreatePayload` → build Docker fallita | Tipi `steps` aggiornati in `web/src/api.ts` |
-| UI bottoni | `Salva` / `Conferma chiusura` / download installer senza `ghost` (bianchi) | Classe `ghost` allineata + `.search-actions` per Cerca/Salva |
-| UI filtri | Riga stato alert a sinistra; MITRE/SLA disallineati rispetto a Chiusi | `justify-content: center` + `.status-filter-field` con stessa altezza |
-| Ricerca | Manca filtro stato alert e guida costruzione query | Dropdown **Stato**, wiki `?`, export CSV risultati |
-| Auth machine | Token API ok ma ruolo `ingest` senza permessi search (atteso) | Documentato; usate Bearer user per UI |
+Dettaglio completo (sintomo, causa, perche, fix) nelle Issues chiuse con label `fixed` + `lab`:
+
+| Issue | Titolo |
+|-------|--------|
+| [#1](https://github.com/DarkGreen-projects/darkgreen-siem/issues/1) | `GET /api/sources` 500: `ingest_stats` senza `tenant_id` |
+| [#2](https://github.com/DarkGreen-projects/darkgreen-siem/issues/2) | `acked_at` assente dagli ALTER (DB legacy) |
+| [#3](https://github.com/DarkGreen-projects/darkgreen-siem/issues/3) | Download tool pack 404 (tools non in immagine API) |
+| [#4](https://github.com/DarkGreen-projects/darkgreen-siem/issues/4) | Build web fallita: step `enrich` non tipizzato |
+| [#5](https://github.com/DarkGreen-projects/darkgreen-siem/issues/5) | Bottoni UI bianchi (Salva / Conferma / installer) |
+| [#6](https://github.com/DarkGreen-projects/darkgreen-siem/issues/6) | Filtri stato: allineamento MITRE/SLA |
+| [#7](https://github.com/DarkGreen-projects/darkgreen-siem/issues/7) | Ricerca: Stato, wiki query, export CSV |
+
+Lista: [Issues chiuse (bug fixed)](https://github.com/DarkGreen-projects/darkgreen-siem/issues?q=is%3Aissue+label%3Afixed+is%3Aclosed).
 
 ## Ecosistema
 
