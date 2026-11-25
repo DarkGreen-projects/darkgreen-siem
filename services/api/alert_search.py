@@ -11,29 +11,41 @@ from .input_limits import escape_like
 
 
 def search_alerts_by_text(
-    db: Session, q: str, *, limit: int = 50, tenant_id: str | None = None
+    db: Session,
+    q: str,
+    *,
+    limit: int = 50,
+    tenant_id: str | None = None,
+    status: str | None = None,
 ) -> list[tuple[Alert, str | None]]:
-    """Return alerts matching title/description/comments, with matched comment snippet."""
-    terms = search_terms_from_query(q)
-    if not terms:
-        return []
+    """Return alerts matching title/description/comments, with matched comment snippet.
 
-    clauses = []
-    for term in terms:
-        like = f"%{escape_like(term)}%"
-        clauses.append(Alert.title.ilike(like, escape="\\"))
-        clauses.append(Alert.description.ilike(like, escape="\\"))
-        clauses.append(AlertComment.body.ilike(like, escape="\\"))
+    If ``status`` is set and ``q`` has no terms, returns recent alerts in that status.
+    """
+    terms = search_terms_from_query(q)
+    status_norm = (status or "").strip().lower() or None
+
+    if not terms and not status_norm:
+        return []
 
     stmt = (
         select(Alert, AlertComment.body)
         .outerjoin(AlertComment, AlertComment.alert_id == Alert.id)
-        .where(or_(*clauses))
         .order_by(Alert.created_at.desc())
-        .limit(limit * 3)
+        .limit(limit * 3 if terms else limit)
     )
+    if terms:
+        clauses = []
+        for term in terms:
+            like = f"%{escape_like(term)}%"
+            clauses.append(Alert.title.ilike(like, escape="\\"))
+            clauses.append(Alert.description.ilike(like, escape="\\"))
+            clauses.append(AlertComment.body.ilike(like, escape="\\"))
+        stmt = stmt.where(or_(*clauses))
     if tenant_id:
         stmt = stmt.where(Alert.tenant_id == tenant_id)
+    if status_norm:
+        stmt = stmt.where(Alert.status == status_norm)
     rows = list(db.execute(stmt).all())
 
     # Deduplicate by alert id; prefer a matching comment snippet
@@ -41,7 +53,7 @@ def search_alerts_by_text(
     for alert, comment_body in rows:
         existing = by_id.get(alert.id)
         snippet: str | None = None
-        if comment_body:
+        if comment_body and terms:
             lower_body = comment_body.lower()
             if any(t.lower() in lower_body for t in terms):
                 snippet = comment_body

@@ -9,7 +9,7 @@
 
 Parte del portfolio [DarkGreen Projects](https://github.com/DarkGreen-projects).
 
-<img width="1364" height="1072" alt="image" src="https://github.com/user-attachments/assets/0ef56274-fa05-4a70-9a94-1c8aaf78e3c6" />
+![Dashboard lab DarkGreen SIEM](docs/assets/dashboard-lab.png)
 
 ## Cosa fa
 
@@ -19,7 +19,7 @@ Parte del portfolio [DarkGreen Projects](https://github.com/DarkGreen-projects).
 | **Normalizzazione** | FortiGate syslog KV + windows / cloud_auth / **siem_export Cynet** (process, hash, MITRE labels) |
 | **Auth / RBAC** | Soft multi-tenant + ruoli admin/analyst/viewer/ingest |
 | **TLS / HA** | Overlay Compose TLS + 2 API dietro nginx |
-| **Ricerca** | Query `field:value` + free-text; ricerche predefinite |
+| **Ricerca** | Query `field:value` + free-text; filtro **Stato** alert; guida `?` + export CSV risultati |
 | **Dashboard** | EPS, timeline, health, filtri stato/MITRE/SLA, export CSV (polling lean) |
 | **Turno** | Workbench coda, briefing, **alert collegati**, hotkeys, checklist, pivot |
 | **Setup lab** | Retention, silence, purge, TI, webhook, **SLA**, **RAG**, **Alert graph**, **Copilot** |
@@ -273,6 +273,23 @@ pytest tests/test_lab_proof_report.py tests/test_optimization_regressions.py -q
 Output versionato anche in **[docs/lab-reports/latest/](docs/lab-reports/latest/)** (stesso contenuto di `tests/lab_proof/out/latest/`): `report.md`, `report.html`, `metrics.json`, `charts/*.svg`.
 
 Indice report: [docs/lab-reports/README.md](docs/lab-reports/README.md).
+
+## Novita lab (2026-11-25)
+
+Screenshot aggiornato dalla dashboard live dopo populate di test (~572 eventi / ~289 alert). Report: [docs/lab-reports/latest/lab-populate-report.md](docs/lab-reports/latest/lab-populate-report.md).
+
+### Bug e falli corretti in questa versione
+
+| Area | Problema | Fix |
+|------|----------|-----|
+| Schema Postgres | Volume lab vecchio: `ingest_stats` senza `tenant_id` → `GET /api/sources` **500** | Migrazione ALTER + PK `(tenant_id, channel)` in `init_db` |
+| Schema alerts | `acked_at` sul modello ma assente da `_ALTERS` (rischio su DB legacy) | Colonna aggiunta agli ALTER |
+| Docker API | Download `connect-installer.zip` / `windows-agent.zip` → **404** | `COPY tools/...` nel Dockerfile API |
+| Build web | TypeScript: step `enrich` non tipizzato in `RuleCreatePayload` → build Docker fallita | Tipi `steps` aggiornati in `web/src/api.ts` |
+| UI bottoni | `Salva` / `Conferma chiusura` / download installer senza `ghost` (bianchi) | Classe `ghost` allineata + `.search-actions` per Cerca/Salva |
+| UI filtri | Riga stato alert a sinistra; MITRE/SLA disallineati rispetto a Chiusi | `justify-content: center` + `.status-filter-field` con stessa altezza |
+| Ricerca | Manca filtro stato alert e guida costruzione query | Dropdown **Stato**, wiki `?`, export CSV risultati |
+| Auth machine | Token API ok ma ruolo `ingest` senza permessi search (atteso) | Documentato; usate Bearer user per UI |
 
 ## Ecosistema
 

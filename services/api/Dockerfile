@@ -9,6 +9,8 @@ COPY services/normalizers /app/services/normalizers
 COPY services/api /app/services/api
 COPY rules /app/rules
 COPY samples /app/samples
+COPY tools/connect-installer /app/tools/connect-installer
+COPY tools/windows-agent /app/tools/windows-agent
 
 ENV PYTHONPATH=/app
 ENV PYTHONUNBUFFERED=1

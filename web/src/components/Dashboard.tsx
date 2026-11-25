@@ -211,21 +211,21 @@ export default function Dashboard({
               </button>
             );
           })}
-          <label className="muted" style={{ fontSize: "0.85rem", marginLeft: "0.5rem" }}>
-            MITRE{" "}
+          <label className="status-filter-field">
+            MITRE
             <input
               value={mitreFilter}
               onChange={(e) => setMitreFilter(e.target.value)}
               placeholder="T1059"
-              style={{ width: "7rem", marginLeft: "0.25rem" }}
+              aria-label="Filtro MITRE"
             />
           </label>
-          <label className="muted" style={{ fontSize: "0.85rem", marginLeft: "0.5rem" }}>
-            SLA{" "}
+          <label className="status-filter-field">
+            SLA
             <select
               value={slaFilter}
               onChange={(e) => setSlaFilter(e.target.value)}
-              style={{ marginLeft: "0.25rem" }}
+              aria-label="Filtro SLA"
             >
               <option value="">tutti</option>
               <option value="breached">breached</option>

@@ -156,6 +156,7 @@ export default function SourcesPanel() {
         </ol>
         <button
           type="button"
+          className="ghost"
           disabled={dlBusy === "wizard"}
           onClick={() => void onDownload("wizard")}
         >

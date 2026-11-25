@@ -495,7 +495,7 @@ export default function AlertCard({
             <button type="button" className="ghost" disabled={busy} onClick={() => void runCopilot()}>
               Suggerisci chiusura
             </button>
-            <button type="button" disabled={busy} onClick={() => void confirmClose()}>
+            <button type="button" className="ghost" disabled={busy} onClick={() => void confirmClose()}>
               Conferma chiusura
             </button>
             <button

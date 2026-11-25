@@ -221,7 +221,16 @@ export type RuleCreatePayload = {
   threshold?: number;
   group_by?: string;
   join_on?: string;
-  steps?: { match: Record<string, string | string[]>; min_count?: number }[];
+  steps?: Array<
+    | { match: Record<string, string | string[]>; min_count?: number }
+    | {
+        enrich: {
+          providers?: string[];
+          verdicts?: string[];
+          ioc_type?: string;
+        };
+      }
+  >;
   overwrite?: boolean;
 };
 
@@ -570,12 +579,14 @@ export const api = {
     q?: string;
     source_type?: string;
     severity?: string;
+    status?: string;
     since_minutes?: number;
   }) => {
     const sp = new URLSearchParams();
     if (params.q) sp.set("q", params.q);
     if (params.source_type) sp.set("source_type", params.source_type);
     if (params.severity) sp.set("severity", params.severity);
+    if (params.status) sp.set("status", params.status);
     if (params.since_minutes) sp.set("since_minutes", String(params.since_minutes));
     sp.set("limit", "100");
     return getJson<{ total: number; events: SiemEvent[]; alerts: AlertSearchHit[] }>(

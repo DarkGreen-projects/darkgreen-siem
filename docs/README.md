@@ -19,6 +19,7 @@ Report versionati (Markdown + HTML + SVG + JSON):
 
 - Indice: [lab-reports/README.md](lab-reports/README.md)
 - Ultimo: [lab-reports/latest/report.md](lab-reports/latest/report.md)
+- Populate live: [lab-reports/latest/lab-populate-report.md](lab-reports/latest/lab-populate-report.md)
 
 ## Diagrammi (SVG)
 
@@ -28,7 +29,7 @@ Report versionati (Markdown + HTML + SVG + JSON):
 | [assets/pipeline-overview.svg](assets/pipeline-overview.svg) | Pipeline collect → API → Postgres / UI |
 | [assets/alert-graph-flow.svg](assets/alert-graph-flow.svg) | Entity norm → alert_links → fingerprint → copilot |
 | [assets/workbench-turno.svg](assets/workbench-turno.svg) | Coda Turno, briefing, collegati, close |
-| [assets/dashboard-preview.svg](assets/dashboard-preview.svg) | Preview stile dashboard |
+| [assets/dashboard-lab.png](assets/dashboard-lab.png) | Screenshot dashboard lab (populate 2026-11-25) |
 
 ## API utili (lab)
 

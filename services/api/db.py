@@ -21,6 +21,7 @@ _ALTERS = (
     "ALTER TABLE alert_audits ADD COLUMN IF NOT EXISTS tenant_id VARCHAR(64) DEFAULT 'lab'",
     "ALTER TABLE ioc_verdicts ADD COLUMN IF NOT EXISTS tenant_id VARCHAR(64) DEFAULT 'lab'",
     "ALTER TABLE alerts ADD COLUMN IF NOT EXISTS mitre VARCHAR(256)",
+    "ALTER TABLE alerts ADD COLUMN IF NOT EXISTS acked_at TIMESTAMPTZ",
     "ALTER TABLE alerts ADD COLUMN IF NOT EXISTS closed_at TIMESTAMPTZ",
     "ALTER TABLE alerts ADD COLUMN IF NOT EXISTS disposition VARCHAR(32)",
     "ALTER TABLE alerts ADD COLUMN IF NOT EXISTS closure_note TEXT",
@@ -28,6 +29,29 @@ _ALTERS = (
     "ALTER TABLE alerts ADD COLUMN IF NOT EXISTS risk_score INTEGER",
     "ALTER TABLE alerts ADD COLUMN IF NOT EXISTS noise_hint VARCHAR(32)",
     "ALTER TABLE alert_audits ADD COLUMN IF NOT EXISTS note TEXT",
+    "ALTER TABLE ingest_stats ADD COLUMN IF NOT EXISTS tenant_id VARCHAR(64) DEFAULT 'lab'",
+    "UPDATE ingest_stats SET tenant_id = 'lab' WHERE tenant_id IS NULL OR btrim(tenant_id) = ''",
+    """
+    DO $mig$
+    BEGIN
+      IF EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = 'public' AND table_name = 'ingest_stats' AND column_name = 'tenant_id'
+      ) AND EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'ingest_stats_pkey'
+      ) AND NOT EXISTS (
+        SELECT 1 FROM information_schema.key_column_usage
+        WHERE table_schema = 'public' AND table_name = 'ingest_stats'
+          AND column_name = 'tenant_id' AND constraint_name = 'ingest_stats_pkey'
+      ) THEN
+        ALTER TABLE ingest_stats DROP CONSTRAINT ingest_stats_pkey;
+        ALTER TABLE ingest_stats ALTER COLUMN tenant_id SET DEFAULT 'lab';
+        ALTER TABLE ingest_stats ALTER COLUMN tenant_id SET NOT NULL;
+        ALTER TABLE ingest_stats ADD PRIMARY KEY (tenant_id, channel);
+      END IF;
+    END
+    $mig$
+    """,
     "CREATE INDEX IF NOT EXISTS ix_events_tenant_ts ON events (tenant_id, timestamp)",
     """
     CREATE TABLE IF NOT EXISTS alert_memory (

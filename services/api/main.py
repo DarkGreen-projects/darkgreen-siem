@@ -545,6 +545,9 @@ def api_search(
     q: str = Query("", max_length=MAX_SEARCH_Q, description="field:value AND free-text"),
     source_type: str | None = None,
     severity: str | None = None,
+    status: str | None = Query(
+        None, description="Filter alert hits by status (open|acked|in_progress|closed)"
+    ),
     since_minutes: int | None = Query(None, ge=1, le=10080),
     limit: int = Query(100, ge=1, le=500),
     offset: int = Query(0, ge=0),
@@ -561,6 +564,12 @@ def api_search(
             status_code=400,
             detail=f"severity must be one of: {', '.join(sorted(ALLOWED_SEVERITIES))}",
         )
+    status_norm = (status or "").strip().lower() or None
+    if status_norm and status_norm not in ALERT_STATUSES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"status must be one of: {', '.join(sorted(ALERT_STATUSES))}",
+        )
     briefs = _rule_briefs()
     tid = principal.tenant_id
     total, events = search_events(
@@ -574,7 +583,9 @@ def api_search(
         tenant_id=tid,
     )
     alert_hits: list[AlertSearchHit] = []
-    for alert, matched in search_alerts_by_text(db, q, limit=25, tenant_id=tid):
+    for alert, matched in search_alerts_by_text(
+        db, q, limit=25, tenant_id=tid, status=status_norm
+    ):
         base = alert_to_out(alert, briefs, db=db)
         alert_hits.append(
             AlertSearchHit(**base.model_dump(), matched_comment=matched)

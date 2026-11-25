@@ -9,6 +9,7 @@ import {
   type SavedQuery,
 } from "../savedQueries";
 import AlertCard from "./AlertCard";
+import QueryHelpWiki from "./QueryHelpWiki";
 import { iocForIp, type IocHit } from "../vtLinks";
 
 function VtIpLink({ ip }: { ip: string | null | undefined }) {
@@ -19,6 +20,73 @@ function VtIpLink({ ip }: { ip: string | null | undefined }) {
       VT
     </a>
   );
+}
+
+function csvEscape(value: unknown): string {
+  const s = value == null ? "" : String(value);
+  if (/[",\n\r]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
+  return s;
+}
+
+function downloadSearchCsv(events: SiemEvent[], alerts: AlertSearchHit[]): void {
+  const header = [
+    "kind",
+    "id",
+    "timestamp",
+    "source_type",
+    "severity",
+    "action",
+    "user",
+    "src_ip",
+    "dst_ip",
+    "host",
+    "status",
+    "title",
+    "message",
+  ];
+  const rows: string[][] = [header];
+  for (const ev of events) {
+    rows.push([
+      "event",
+      String(ev.id),
+      ev.timestamp || "",
+      ev.source_type || "",
+      ev.severity || "",
+      ev.action || "",
+      ev.user || "",
+      ev.src_ip || "",
+      ev.dst_ip || "",
+      ev.host || "",
+      "",
+      "",
+      ev.message || "",
+    ]);
+  }
+  for (const a of alerts) {
+    rows.push([
+      "alert",
+      String(a.id),
+      a.created_at || "",
+      "",
+      a.severity || "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      a.status || "",
+      a.title || "",
+      a.description || "",
+    ]);
+  }
+  const body = rows.map((r) => r.map(csvEscape).join(",")).join("\r\n");
+  const blob = new Blob([body], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `darkgreen-search-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-")}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
 }
 
 export default function SearchPanel({
@@ -33,6 +101,7 @@ export default function SearchPanel({
   const [q, setQ] = useState("action:deny");
   const [sourceType, setSourceType] = useState("");
   const [severity, setSeverity] = useState("");
+  const [status, setStatus] = useState("");
   const [total, setTotal] = useState(0);
   const [events, setEvents] = useState<SiemEvent[]>([]);
   const [alertHits, setAlertHits] = useState<AlertSearchHit[]>([]);
@@ -43,16 +112,25 @@ export default function SearchPanel({
   const [saved, setSaved] = useState<SavedQuery[]>([]);
   const [saveName, setSaveName] = useState("");
   const [showSaveForm, setShowSaveForm] = useState(false);
+  const [showQueryWiki, setShowQueryWiki] = useState(false);
+  const [hasSearched, setHasSearched] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
   useEffect(() => {
     setSaved(loadSavedQueries());
   }, []);
 
   const runSearch = useCallback(
-    async (next?: { q?: string; source_type?: string; severity?: string }) => {
+    async (next?: {
+      q?: string;
+      source_type?: string;
+      severity?: string;
+      status?: string;
+    }) => {
       const query = next?.q ?? q;
       const st = next?.source_type ?? sourceType;
       const sev = next?.severity ?? severity;
+      const stStatus = next?.status ?? status;
       setLoading(true);
       setError(null);
       try {
@@ -60,26 +138,38 @@ export default function SearchPanel({
           q: query,
           source_type: st || undefined,
           severity: sev || undefined,
+          status: stStatus || undefined,
           since_minutes: 1440,
         });
         setTotal(res.total);
         setEvents(res.events);
         setAlertHits(res.alerts || []);
+        setHasSearched(true);
       } catch (e) {
         setError((e as Error).message);
       } finally {
         setLoading(false);
       }
     },
-    [q, sourceType, severity]
+    [q, sourceType, severity, status]
   );
+
+  const exportResults = () => {
+    setExporting(true);
+    try {
+      downloadSearchCsv(events, alertHits);
+    } finally {
+      setExporting(false);
+    }
+  };
 
   useEffect(() => {
     if (!initialQuery) return;
     setQ(initialQuery);
     setSourceType("");
     setSeverity("");
-    void runSearch({ q: initialQuery, source_type: "", severity: "" });
+    setStatus("");
+    void runSearch({ q: initialQuery, source_type: "", severity: "", status: "" });
     onPivotConsumed?.();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialQuery]);
@@ -88,10 +178,12 @@ export default function SearchPanel({
     setQ(item.q);
     setSourceType(item.source_type);
     setSeverity(item.severity);
+    setStatus("");
     void runSearch({
       q: item.q,
       source_type: item.source_type,
       severity: item.severity,
+      status: "",
     });
   };
 
@@ -99,10 +191,12 @@ export default function SearchPanel({
     setQ(item.q);
     setSourceType(item.source_type);
     setSeverity(item.severity);
+    setStatus("");
     void runSearch({
       q: item.q,
       source_type: item.source_type,
       severity: item.severity,
+      status: "",
     });
   };
 
@@ -130,7 +224,18 @@ export default function SearchPanel({
       <div className="panel">
         <div className="row">
           <div style={{ flex: 2 }}>
-            <label htmlFor="q">Query</label>
+            <label htmlFor="q" className="query-label">
+              Query{" "}
+              <button
+                type="button"
+                className="query-help-btn"
+                aria-label="Apri guida costruzione query"
+                title="Guida query"
+                onClick={() => setShowQueryWiki(true)}
+              >
+                ?
+              </button>
+            </label>
             <input
               id="q"
               value={q}
@@ -160,9 +265,24 @@ export default function SearchPanel({
               <option value="info">info</option>
             </select>
           </div>
+          <div>
+            <label htmlFor="alert-status">Stato</label>
+            <select
+              id="alert-status"
+              value={status}
+              onChange={(e) => setStatus(e.target.value)}
+              aria-label="Filtro stato alert"
+            >
+              <option value="">Qualsiasi</option>
+              <option value="open">open</option>
+              <option value="acked">acked</option>
+              <option value="in_progress">in_progress</option>
+              <option value="closed">closed</option>
+            </select>
+          </div>
           <div style={{ flex: "0 0 auto" }}>
             <label>&nbsp;</label>
-            <div className="row" style={{ gap: "0.4rem", flexWrap: "nowrap" }}>
+            <div className="search-actions">
               <button
                 className="primary"
                 type="button"
@@ -254,6 +374,23 @@ export default function SearchPanel({
       </div>
 
       {error && <p className="error">{error}</p>}
+
+      {hasSearched && (
+        <div className="panel search-results-toolbar">
+          <p className="muted" style={{ margin: 0 }}>
+            Risultati: {total} evento{total === 1 ? "" : "i"}
+            {alertHits.length > 0 ? ` · ${alertHits.length} alert` : ""}
+          </p>
+          <button
+            type="button"
+            className="ghost"
+            disabled={exporting || (events.length === 0 && alertHits.length === 0)}
+            onClick={exportResults}
+          >
+            {exporting ? "Export…" : "Esporta risultati CSV"}
+          </button>
+        </div>
+      )}
 
       {alertHits.length > 0 && (
         <div className="panel">
@@ -416,6 +553,12 @@ export default function SearchPanel({
           </aside>
         </div>
       )}
+
+      <QueryHelpWiki
+        open={showQueryWiki}
+        onClose={() => setShowQueryWiki(false)}
+        onUseExample={(exampleQ) => setQ(exampleQ)}
+      />
     </>
   );
 }

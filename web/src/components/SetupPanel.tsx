@@ -598,7 +598,7 @@ export default function SetupPanel() {
         </div>
 
         <div className="row" style={{ gap: "0.5rem", marginTop: "1rem" }}>
-          <button type="button" disabled={busy} onClick={() => void save()}>
+          <button type="button" className="ghost" disabled={busy} onClick={() => void save()}>
             Salva
           </button>
           <button type="button" className="ghost" disabled={busy} onClick={() => void runPurge()}>

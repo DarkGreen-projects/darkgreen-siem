@@ -298,7 +298,7 @@ export default function WorkbenchPanel({ onPivotSearch }: Props) {
                     />
                   </label>
                   <div className="row" style={{ gap: "0.5rem", marginTop: "0.5rem" }}>
-                    <button type="button" disabled={busy} onClick={() => void confirmClose()}>
+                    <button type="button" className="ghost" disabled={busy} onClick={() => void confirmClose()}>
                       Conferma
                     </button>
                     <button type="button" className="ghost" onClick={() => setCloseOpen(false)}>
