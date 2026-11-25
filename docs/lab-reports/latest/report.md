@@ -1,6 +1,6 @@
 # DarkGreen SIEM - Lab proof mini-report
 
-Generato: `2026-11-25T12:28:35.307480+00:00`
+Generato: `2026-11-25T12:28:57.232424+00:00`
 
 Report automatico su regole, copertura, test delle upgrade e impatto lean.
 
@@ -58,6 +58,21 @@ Report automatico su regole, copertura, test delle upgrade e impatto lean.
 | `installer_exe_or_build` | yes |
 | `setup_guide` | yes |
 | `visible_interval_hook` | yes |
+
+## Ultima pytest (opzionale)
+
+- exit: `0` · passed: **142** · failed: **0**
+
+```
+    class AlertOut(BaseModel):
+
+services\api\schemas.py:206
+  C:\Users\feded\Projects\darkgreen-siem\services\api\schemas.py:206: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.13/migration/
+    class AuditOut(BaseModel):
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+142 passed, 4 warnings in 1.05s
+```
 
 ## Come rigenerare
 

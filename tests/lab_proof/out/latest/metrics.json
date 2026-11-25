@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-11-25T12:28:35.307480+00:00",
+  "generated_at": "2026-11-25T12:28:57.232424+00:00",
   "repo": "C:\\Users\\feded\\Projects\\darkgreen-siem",
   "rules": {
     "by_type": {
@@ -232,5 +232,10 @@
     ],
     "lean_impact_score": 120
   },
-  "pytest": null
+  "pytest": {
+    "exit_code": 0,
+    "passed": 142,
+    "failed": 0,
+    "tail": "    class AlertOut(BaseModel):\n\nservices\\api\\schemas.py:206\n  C:\\Users\\feded\\Projects\\darkgreen-siem\\services\\api\\schemas.py:206: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.13/migration/\n    class AuditOut(BaseModel):\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n142 passed, 4 warnings in 1.05s"
+  }
 }
