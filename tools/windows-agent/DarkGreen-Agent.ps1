@@ -4,7 +4,7 @@
 param(
   [string]$SiemUrl = $env:SIEM_URL,
   [string]$Token = $env:SIEM_API_TOKEN,
-  [int]$IntervalSec = 30,
+  [int]$IntervalSec = 60,
   [int]$LookbackMinutes = 5,
   [switch]$Once
 )

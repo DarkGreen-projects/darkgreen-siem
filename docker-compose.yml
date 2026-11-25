@@ -6,6 +6,8 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
+    mem_limit: 1g
+    cpus: 1.0
     environment:
       POSTGRES_USER: siem
       POSTGRES_PASSWORD: siem
@@ -23,6 +25,8 @@ services:
       context: .
       dockerfile: services/api/Dockerfile
     logging: *default_logging
+    mem_limit: 1g
+    cpus: 1.0
     environment:
       DATABASE_URL: postgresql+psycopg://siem:siem@postgres:5432/darkgreen_siem
       RULES_DIR: /app/rules
@@ -43,11 +47,12 @@ services:
       DEMO_PASSWORD: ${DEMO_PASSWORD:-darkgreen}
       AUTH_SECRET: ${AUTH_SECRET:-darkgreen-siem-compose-secret}
       SIEM_API_TOKEN: ${SIEM_API_TOKEN:-dg-lab-token-compose}
-      RETENTION_DAYS: "7"
-      HEALTH_STALE_MINUTES: "5"
-      HEALTH_SILENT_MINUTES: "30"
+      RETENTION_DAYS: ${RETENTION_DAYS:-7}
+      HEALTH_STALE_MINUTES: ${HEALTH_STALE_MINUTES:-5}
+      HEALTH_SILENT_MINUTES: ${HEALTH_SILENT_MINUTES:-30}
       SILENCE_ALERTS_ENABLED: "true"
-      PURGE_INTERVAL_SEC: "300"
+      PURGE_INTERVAL_SEC: ${PURGE_INTERVAL_SEC:-300}
+      RULE_INTERVAL_SEC: ${RULE_INTERVAL_SEC:-30}
       VT_API_KEY: ${VT_API_KEY:-}
       VT_CACHE_TTL_HOURS: "24"
       ABUSEIPDB_API_KEY: ${ABUSEIPDB_API_KEY:-}
@@ -72,22 +77,28 @@ services:
       context: ./web
       dockerfile: Dockerfile
     logging: *default_logging
+    mem_limit: 256m
+    cpus: 0.5
     ports:
       - "8080:80"
     depends_on:
       - api
 
+  # Traffico demo continuo: docker compose --profile demo up --build
   log-generator:
+    profiles: ["demo"]
     build:
       context: .
       dockerfile: services/log-generator/Dockerfile
     logging: *default_logging
+    mem_limit: 256m
+    cpus: 0.5
     environment:
       API_URL: http://api:8000
       SYSLOG_HOST: api
       SYSLOG_PORT: "5140"
-      INTERVAL_SEC: "2"
-      SIEM_API_TOKEN: dg-lab-token-compose
+      INTERVAL_SEC: ${INTERVAL_SEC:-8}
+      SIEM_API_TOKEN: ${SIEM_API_TOKEN:-dg-lab-token-compose}
     depends_on:
       - api
 

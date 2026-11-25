@@ -1,8 +1,9 @@
-# DarkGreen SIEM Connect Wizard
-#
-# Windows:  powershell -ExecutionPolicy Bypass -File .\Connect-DarkGreen.ps1
-# Linux:    bash ./connect-darkgreen.sh
-#
-# Env tipici:
-#   SIEM URL  = http://localhost:8000  (o IP della macchina Docker)
-#   TOKEN     = valore di SIEM_API_TOKEN
+# DarkGreen SIEM Connect Wizard (legacy)
+
+Il pack aggiornato e l'EXE wizard sono in **`../connect-installer/`**.
+
+- Windows: `DarkGreen-Setup.cmd` / `DarkGreen-Setup.ps1` / `build_exe.ps1`
+- Linux: `connect-darkgreen.sh`
+
+Questa cartella resta per compatibilita con script vecchi (`Connect-DarkGreen.ps1`).
+L'API `GET /api/tools/connect-wizard.zip` serve gia il pack `connect-installer`.

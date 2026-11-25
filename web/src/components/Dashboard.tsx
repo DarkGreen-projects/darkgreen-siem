@@ -9,6 +9,7 @@ import {
   type StatsRange,
 } from "../api";
 import AlertCard from "./AlertCard";
+import { useVisibleInterval } from "../hooks/useVisibleInterval";
 
 const RANGES: { id: StatsRange; label: string }[] = [
   { id: "1h", label: "1 ora" },
@@ -45,23 +46,33 @@ export default function Dashboard({
 
   useEffect(() => {
     let alive = true;
-    const load = () =>
+    api
+      .stats(range)
+      .then((s) => {
+        if (alive) {
+          setStats(s);
+          setError(null);
+        }
+      })
+      .catch((e: Error) => alive && setError(e.message));
+    return () => {
+      alive = false;
+    };
+  }, [range]);
+
+  useVisibleInterval(
+    () => {
       api
         .stats(range)
         .then((s) => {
-          if (alive) {
-            setStats(s);
-            setError(null);
-          }
+          setStats(s);
+          setError(null);
         })
-        .catch((e: Error) => alive && setError(e.message));
-    load();
-    const id = setInterval(load, 5000);
-    return () => {
-      alive = false;
-      clearInterval(id);
-    };
-  }, [range]);
+        .catch((e: Error) => setError(e.message));
+    },
+    10000,
+    { deps: [range] }
+  );
 
   useEffect(() => {
     const mitre = mitreFilter.trim();
@@ -71,26 +82,40 @@ export default function Dashboard({
       return;
     }
     let alive = true;
-    const load = () =>
+    api
+      .alerts({
+        status: statusFilter === "all" ? undefined : statusFilter,
+        mitre: mitre || undefined,
+        sla: sla || undefined,
+      })
+      .then((list) => {
+        if (alive) setFilteredAlerts(list);
+      })
+      .catch(() => {
+        if (alive) setFilteredAlerts([]);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [statusFilter, mitreFilter, slaFilter]);
+
+  useVisibleInterval(
+    () => {
+      const mitre = mitreFilter.trim();
+      const sla = slaFilter.trim();
+      if (statusFilter === "all" && !mitre && !sla) return;
       api
         .alerts({
           status: statusFilter === "all" ? undefined : statusFilter,
           mitre: mitre || undefined,
           sla: sla || undefined,
         })
-        .then((list) => {
-          if (alive) setFilteredAlerts(list);
-        })
-        .catch(() => {
-          if (alive) setFilteredAlerts([]);
-        });
-    load();
-    const id = setInterval(load, 5000);
-    return () => {
-      alive = false;
-      clearInterval(id);
-    };
-  }, [statusFilter, mitreFilter, slaFilter]);
+        .then((list) => setFilteredAlerts(list))
+        .catch(() => setFilteredAlerts([]));
+    },
+    10000,
+    { deps: [statusFilter, mitreFilter, slaFilter] }
+  );
 
   const sourcesInChart = useMemo(() => {
     if (!stats) return SOURCE_ORDER;

@@ -30,8 +30,17 @@ Parte del portfolio [DarkGreen Projects](https://github.com/DarkGreen-projects).
 
 ## Avvio rapido
 
+Guida completa: [docs/setup-guide.md](docs/setup-guide.md).
+
 ```bash
+cp .env.example .env   # ruota i secret
 docker compose up --build
+```
+
+Default **lean**: niente `log-generator`, limiti memoria/CPU, `RULE_INTERVAL_SEC=30`. Traffico demo:
+
+```bash
+docker compose --profile demo up --build
 ```
 
 Apri **http://localhost:8080** e accedi con le credenziali lab (default `analyst` / `darkgreen`).
@@ -43,6 +52,10 @@ Apri **http://localhost:8080** e accedi con le credenziali lab (default `analyst
 | Syslog UDP | `localhost:5140` |
 
 Stop: `Ctrl+C` oppure `docker compose down`.
+
+### Installer host (EXE)
+
+Da **Sorgenti** scarica `connect-installer.zip` → sul PC `DarkGreen-Setup.cmd` (o `dist/DarkGreen-Setup.exe`). Passi: compatibilità PC, rete, health, heartbeat, agent/NXLog.
 
 ### Auth lab (abilitata di default)
 
@@ -166,13 +179,14 @@ Hotkeys (Workbench e card in focus): `j`/`k` navigazione, `a` ack, `i` in corso,
 
 Setup: toggle RAG + `rag_top_k`; Alert graph (`graph_enabled`, `graph_window_minutes`, `graph_min_history`); Copilot LLM opzionale (`LLM_*`).
 
-### Connector host (wizard + agent)
+### Connector host (installer EXE + agent lean)
 
 Download da UI Sorgenti (o API):
-- `GET /api/tools/connect-wizard.zip` - PowerShell/bash passo-passo (health, heartbeat, snippet NXLog/rsyslog)
-- `GET /api/tools/windows-agent.zip` - agent lab Security Event Log → `/api/ingest`
+- `GET /api/tools/connect-installer.zip` - WinForms/EXE wizard (compat, rete, health, auth, collezione) + script Linux
+- `GET /api/tools/windows-agent.zip` - agent Security Event Log (default 60s) → `/api/ingest`
+- `GET /api/tools/connect-wizard.zip` - alias legacy dello stesso pack installer
 
-Canali ingest: `connect-wizard`, `windows-agent`.
+Canali ingest: `connect-wizard`, `windows-agent`. Build EXE: `tools/connect-installer/build_exe.ps1`.
 
 ### Cynet / siem_export, dry-run, MITRE, dedup
 
@@ -226,7 +240,7 @@ darkgreen-siem/
 │   ├── api/               # FastAPI, syslog, regole, RAG, graph, copilot
 │   ├── normalizers/       # parser ECS-lite
 │   └── log-generator/     # traffico demo continuo
-├── tools/                 # connect-wizard + windows-agent
+├── tools/                 # connect-installer (EXE) + windows-agent
 ├── web/                   # UI React + Vite (+ nginx)
 ├── docs/                  # architettura + diagrammi SVG
 └── tests/                 # pytest

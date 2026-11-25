@@ -3,6 +3,9 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
+from sqlalchemy import and_, func, select
+from sqlalchemy.orm import Session
+
 KNOWN_SOURCES = ("firewall", "windows", "cloud_auth", "siem_export")
 
 # range_key -> (window, bucket_size, bucket_count)
@@ -33,6 +36,65 @@ def build_bucket_bounds(
         end = now - bucket * i
         bounds.append((start, end))
     return bounds
+
+
+def build_timeline(
+    db: Session,
+    *,
+    tenant_id: str,
+    range_key: str,
+    now: datetime | None = None,
+) -> list[dict[str, Any]]:
+    """Single-query timeline buckets (source counts) for a range."""
+    from .models import Event
+
+    now = now or datetime.now(timezone.utc)
+    key = normalize_range(range_key)
+    bounds = build_bucket_bounds(key, now)
+    if not bounds:
+        return []
+    _window, bucket, count = RANGE_SPECS[key]
+    bucket_sec = max(1, int(bucket.total_seconds()))
+    window_start = bounds[0][0]
+    window_end = bounds[-1][1]
+    start_epoch = window_start.timestamp()
+
+    bucket_idx = func.floor(
+        (func.extract("epoch", Event.timestamp) - start_epoch) / float(bucket_sec)
+    )
+    rows = db.execute(
+        select(bucket_idx, Event.source_type, func.count())
+        .where(
+            and_(
+                Event.tenant_id == tenant_id,
+                Event.timestamp >= window_start,
+                Event.timestamp < window_end,
+            )
+        )
+        .group_by(bucket_idx, Event.source_type)
+    ).all()
+
+    by_bucket: dict[int, dict[str, int]] = {i: {} for i in range(count)}
+    for idx, source_type, n in rows:
+        try:
+            i = int(idx)
+        except (TypeError, ValueError):
+            continue
+        if i < 0 or i >= count:
+            continue
+        by_bucket[i][str(source_type)] = int(n)
+
+    timeline: list[dict[str, Any]] = []
+    for i, (start, _end) in enumerate(bounds):
+        by_src = by_bucket.get(i) or {}
+        timeline.append(
+            {
+                "bucket": start.isoformat(),
+                "count": sum(by_src.values()),
+                "by_source": by_src,
+            }
+        )
+    return timeline
 
 
 def health_status(

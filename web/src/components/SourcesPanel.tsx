@@ -1,12 +1,13 @@
 import { useEffect, useState } from "react";
 import { api, type Source } from "../api";
+import { useVisibleInterval } from "../hooks/useVisibleInterval";
 
 const CHANNEL_HELP: Record<string, string> = {
   seed: "File sample caricati all'avvio API",
   http: "REST /api/ingest (tool UI + log-generator)",
   syslog: "Collector syslog UDP sulla porta 5140",
-  "connect-wizard": "Heartbeat del wizard di connessione",
-  "windows-agent": "Agent Windows (Security Event Log)",
+  "connect-wizard": "Heartbeat installer / connect wizard",
+  "windows-agent": "Agent Windows lean (Security Event Log)",
   agent: "Agent generico",
 };
 
@@ -46,18 +47,24 @@ export default function SourcesPanel() {
 
   useEffect(() => {
     let alive = true;
-    const load = () =>
-      api
-        .sources()
-        .then((s) => alive && setSources(s))
-        .catch((e: Error) => alive && setError(e.message));
-    load();
-    const id = setInterval(load, 5000);
+    api
+      .sources()
+      .then((s) => alive && setSources(s))
+      .catch((e: Error) => alive && setError(e.message));
     return () => {
       alive = false;
-      clearInterval(id);
     };
   }, []);
+
+  useVisibleInterval(
+    () => {
+      api
+        .sources()
+        .then((s) => setSources(s))
+        .catch((e: Error) => setError(e.message));
+    },
+    10000
+  );
 
   const byChannel = Object.fromEntries(sources.map((s) => [s.channel, s]));
   const wizard = byChannel["connect-wizard"];
@@ -68,7 +75,10 @@ export default function SourcesPanel() {
     setError(null);
     try {
       if (kind === "wizard") {
-        await downloadTool("/api/tools/connect-wizard.zip", "darkgreen-connect-wizard.zip");
+        await downloadTool(
+          "/api/tools/connect-installer.zip",
+          "darkgreen-connect-installer.zip"
+        );
       } else {
         await downloadTool("/api/tools/windows-agent.zip", "darkgreen-windows-agent.zip");
       }
@@ -111,7 +121,7 @@ export default function SourcesPanel() {
             {sources.length === 0 && (
               <tr>
                 <td colSpan={4} className="muted">
-                  Nessuna attivita di ingest - avvia Compose e attendi seed/log-generator.
+                  Nessuna attivita di ingest - avvia Compose (seed) o profilo demo / installer.
                 </td>
               </tr>
             )}
@@ -120,19 +130,22 @@ export default function SourcesPanel() {
       </div>
 
       <div className="panel">
-        <h3 style={{ marginTop: 0 }}>Connector host</h3>
+        <h3 style={{ marginTop: 0 }}>Installer host</h3>
         <p className="muted">
-          Wizard passo-passo per collegare un host al SIEM, poi agent Windows leggero per eventi
-          Security. Download reali dal repo <span className="mono">tools/</span>.
+          EXE / wizard a passi: compatibilità PC, rete, health, heartbeat, agent o NXLog. Guida:{" "}
+          <span className="mono">docs/setup-guide.md</span>.
         </p>
 
-        <h4 className="sources-subhead">1. Connect wizard</h4>
+        <h4 className="sources-subhead">1. Installer Windows (EXE)</h4>
         <ol className="onboarding-guide">
-          <li>Scarica lo zip e apri <span className="mono">Connect-DarkGreen.ps1</span> (o lo script bash).</li>
-          <li>Inserisci URL API e token ingest.</li>
-          <li>Il wizard testa <span className="mono">/health</span>, invia un heartbeat e genera snippet NXLog/rsyslog.</li>
           <li>
-            Stato heartbeat:{" "}
+            Scarica lo zip e lancia <span className="mono">DarkGreen-Setup.cmd</span> (o{" "}
+            <span className="mono">dist/DarkGreen-Setup.exe</span> se presente).
+          </li>
+          <li>Passi: URL/token → compatibilità → rete → health → heartbeat → collezione.</li>
+          <li>Linux: <span className="mono">connect-darkgreen.sh</span> nello stesso pack.</li>
+          <li>
+            Heartbeat:{" "}
             <span className={`badge ${statusBadgeClass(channelStatus(wizard))}`}>
               {channelStatus(wizard)}
             </span>
@@ -146,16 +159,16 @@ export default function SourcesPanel() {
           disabled={dlBusy === "wizard"}
           onClick={() => void onDownload("wizard")}
         >
-          {dlBusy === "wizard" ? "Download…" : "Scarica connect-wizard.zip"}
+          {dlBusy === "wizard" ? "Download…" : "Scarica connect-installer.zip"}
         </button>
 
         <h4 className="sources-subhead" style={{ marginTop: "1.25rem" }}>
-          2. Windows agent
+          2. Windows agent (lean)
         </h4>
         <ol className="onboarding-guide">
-          <li>Scarica lo zip agent e imposta <span className="mono">SIEM_URL</span> / <span className="mono">SIEM_API_TOKEN</span>.</li>
           <li>
-            Esegui <span className="mono">DarkGreen-Agent.ps1 -Once</span> (Admin consigliato per Security log).
+            Preferisci l&apos;installer (Scheduled Task 60s). Oppure zip agent +{" "}
+            <span className="mono">-Once</span> / <span className="mono">-IntervalSec 60</span>.
           </li>
           <li>
             Stato canale:{" "}

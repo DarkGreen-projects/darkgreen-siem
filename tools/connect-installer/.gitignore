@@ -1,0 +1,5 @@
+launcher/bin/
+launcher/obj/
+generated/
+dist/*.pdb
+*.user

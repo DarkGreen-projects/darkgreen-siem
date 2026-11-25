@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { api, type Alert, type DryRunHit, type Rule } from "../api";
 import AlertCard from "./AlertCard";
 import RuleEditorForm from "./RuleEditorForm";
+import { useVisibleInterval } from "../hooks/useVisibleInterval";
 
 type EditorState = { mode: "create" } | { mode: "edit"; rule: Rule } | null;
 
@@ -70,14 +71,18 @@ export default function DetectionsPanel({
   useEffect(() => {
     let alive = true;
     refresh().catch((e: Error) => alive && setError(e.message));
-    const id = setInterval(() => {
-      refresh().catch(() => undefined);
-    }, 8000);
     return () => {
       alive = false;
-      clearInterval(id);
     };
   }, [mitreFilter, slaFilter]);
+
+  useVisibleInterval(
+    () => {
+      refresh().catch(() => undefined);
+    },
+    12000,
+    { deps: [mitreFilter, slaFilter] }
+  );
 
   const runNow = async () => {
     setBusy(true);

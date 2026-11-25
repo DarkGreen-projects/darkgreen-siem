@@ -7,6 +7,7 @@ import {
 } from "../api";
 import AlertCard from "./AlertCard";
 import { TRIAGE_HOTKEY_HELP, useTriageHotkeys } from "../hooks/useTriageHotkeys";
+import { useVisibleInterval } from "../hooks/useVisibleInterval";
 
 const CHECK_KEYS = [
   { id: "ioc", label: "IOC check" },
@@ -59,14 +60,18 @@ export default function WorkbenchPanel({ onPivotSearch }: Props) {
     refresh()
       .catch((e: Error) => alive && setError(e.message))
       .finally(() => undefined);
-    const id = setInterval(() => {
-      refresh().catch(() => undefined);
-    }, 8000);
     return () => {
       alive = false;
-      clearInterval(id);
     };
   }, [refresh]);
+
+  useVisibleInterval(
+    () => {
+      refresh().catch(() => undefined);
+    },
+    12000,
+    { deps: [refresh] }
+  );
 
   const selected = useMemo(
     () => queue.find((a) => a.id === selectedId) || null,

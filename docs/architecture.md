@@ -13,7 +13,7 @@ DarkGreen SIEM è una **demo di portfolio** di una pipeline di log di sicurezza 
 | `postgres` | Store eventi + alert + `alert_memory` + `alert_links` |
 | `api` | FastAPI ingest, search, stats, regole YAML, syslog UDP, RAG, graph, copilot |
 | `web` | UI React (Dashboard, Turno, Ricerca, Sorgenti, Detection, Setup) dietro nginx |
-| `log-generator` | Traffico demo multi-fonte continuo (HTTP + syslog) |
+| `log-generator` | Traffico demo (Compose **profile `demo`**, off di default) |
 
 ```mermaid
 flowchart LR

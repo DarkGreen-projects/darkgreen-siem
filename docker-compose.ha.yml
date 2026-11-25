@@ -27,7 +27,8 @@ services:
       HEALTH_STALE_MINUTES: "5"
       HEALTH_SILENT_MINUTES: "30"
       SILENCE_ALERTS_ENABLED: "true"
-      PURGE_INTERVAL_SEC: "300"
+      PURGE_INTERVAL_SEC: ${PURGE_INTERVAL_SEC:-300}
+      RULE_INTERVAL_SEC: ${RULE_INTERVAL_SEC:-30}
       VT_API_KEY: ${VT_API_KEY:-}
       VT_CACHE_TTL_HOURS: "24"
       ABUSEIPDB_API_KEY: ${ABUSEIPDB_API_KEY:-}
@@ -55,5 +56,5 @@ services:
       API_URL: http://api:8000
       SYSLOG_HOST: api
       SYSLOG_PORT: "5140"
-      INTERVAL_SEC: "2"
-      SIEM_API_TOKEN: dg-lab-token-compose
+      INTERVAL_SEC: ${INTERVAL_SEC:-8}
+      SIEM_API_TOKEN: ${SIEM_API_TOKEN:-dg-lab-token-compose}

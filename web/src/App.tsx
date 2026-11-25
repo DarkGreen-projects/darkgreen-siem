@@ -16,6 +16,7 @@ import DetectionsPanel from "./components/DetectionsPanel";
 import SetupPanel from "./components/SetupPanel";
 import LoginPanel from "./components/LoginPanel";
 import WorkbenchPanel from "./components/WorkbenchPanel";
+import { useVisibleInterval } from "./hooks/useVisibleInterval";
 
 type Tab = "dashboard" | "turno" | "search" | "sources" | "detections" | "setup";
 
@@ -64,26 +65,35 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (!username) return;
+    if (!username || tab === "dashboard") return;
     let alive = true;
-    const load = () =>
+    api
+      .stats("1h")
+      .then((s) => {
+        if (!alive) return;
+        const n = (s.source_health || []).filter((h) => h.status === "silent").length;
+        setSilentCount(n);
+      })
+      .catch(() => undefined);
+    return () => {
+      alive = false;
+    };
+  }, [username, tab]);
+
+  useVisibleInterval(
+    () => {
+      if (!username || tab === "dashboard") return;
       api
         .stats("1h")
         .then((s) => {
-          if (!alive) return;
           const n = (s.source_health || []).filter((h) => h.status === "silent").length;
           setSilentCount(n);
         })
-        .catch(() => {
-          /* ignore poll errors */
-        });
-    load();
-    const id = setInterval(load, 10000);
-    return () => {
-      alive = false;
-      clearInterval(id);
-    };
-  }, [username]);
+        .catch(() => undefined);
+    },
+    45000,
+    { enabled: !!username && tab !== "dashboard", deps: [username, tab] }
+  );
 
   useEffect(() => {
     if (tab === "setup" && !canSetup) setTab("dashboard");

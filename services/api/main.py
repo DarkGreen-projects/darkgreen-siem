@@ -98,7 +98,6 @@ from .search import search_events
 from .seed import seed_samples
 from .stats_helpers import (
     KNOWN_SOURCES,
-    build_bucket_bounds,
     health_status,
     normalize_range,
     resolve_threat_brief,
@@ -184,6 +183,7 @@ def alert_to_out(
     db: Session | None = None,
     comments: list[AlertComment] | None = None,
     include_comments: bool = True,
+    include_audit: bool = True,
 ) -> AlertOut:
     briefs = briefs if briefs is not None else _rule_briefs()
     evidence = dict(alert.evidence or {})
@@ -195,7 +195,7 @@ def alert_to_out(
         elif db is not None:
             comment_rows = _load_comments(db, alert.id)
     audit_rows: list[AlertAudit] = []
-    if db is not None:
+    if include_audit and db is not None:
         audit_rows = _load_audit(db, alert.id)
     lab = get_lab_state()
     sla = compute_alert_sla(
@@ -662,21 +662,9 @@ def api_stats(
         by_alert_status.setdefault(st, 0)
 
     now = datetime.now(timezone.utc)
-    timeline: list[dict[str, Any]] = []
-    for start, end in build_bucket_bounds(range_key, now):
-        rows = db.execute(
-            select(Event.source_type, func.count())
-            .where(and_(te, Event.timestamp >= start, Event.timestamp < end))
-            .group_by(Event.source_type)
-        ).all()
-        by_src = {str(k): int(v) for k, v in rows}
-        timeline.append(
-            {
-                "bucket": start.isoformat(),
-                "count": sum(by_src.values()),
-                "by_source": by_src,
-            }
-        )
+    from .stats_helpers import build_timeline
+
+    timeline = build_timeline(db, tenant_id=tid, range_key=range_key, now=now)
 
     last_by_source = {
         str(k): v
@@ -734,7 +722,12 @@ def api_stats(
         by_alert_status=by_alert_status,
         timeline=timeline,
         source_health=source_health,
-        recent_alerts=[alert_to_out(a, briefs, db=db) for a in recent],
+        recent_alerts=[
+            alert_to_out(
+                a, briefs, db=db, include_comments=False, include_audit=False
+            )
+            for a in recent
+        ],
     )
 
 
@@ -974,7 +967,10 @@ def api_alerts(
         stmt = stmt.where(Alert.mitre.ilike(f"%{safe_mitre}%", escape="\\"))
     if disp:
         stmt = stmt.where(Alert.disposition == disp)
-    out = [alert_to_out(a, briefs, db=db) for a in db.scalars(stmt).all()]
+    out = [
+        alert_to_out(a, briefs, db=db, include_comments=False, include_audit=False)
+        for a in db.scalars(stmt).all()
+    ]
     if sla_wanted:
         out = [
             a
@@ -1010,7 +1006,10 @@ def api_alerts_queue(
         .order_by(Alert.created_at.asc())
         .limit(min(200, limit * 3))
     )
-    outs = [alert_to_out(a, briefs, db=db) for a in db.scalars(stmt).all()]
+    outs = [
+        alert_to_out(a, briefs, db=db, include_comments=False, include_audit=False)
+        for a in db.scalars(stmt).all()
+    ]
     outs.sort(key=queue_sort_key)
     return outs[:limit]
 
@@ -1328,12 +1327,16 @@ def _zip_tool_dir(subdir: str, zip_name: str) -> Response:
     if not root.is_dir():
         raise HTTPException(status_code=404, detail=f"tool pack not found: {subdir}")
     buf = io.BytesIO()
+    skip_parts = {"generated", "bin", "obj", ".git"}
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
         for path in root.rglob("*"):
-            if path.is_file() and path.name != ".agent-last.json":
-                if "generated" in path.parts:
-                    continue
-                zf.write(path, arcname=str(path.relative_to(root.parent)))
+            if not path.is_file() or path.name == ".agent-last.json":
+                continue
+            if any(p in skip_parts for p in path.parts):
+                continue
+            if path.name == ".gitkeep":
+                continue
+            zf.write(path, arcname=str(path.relative_to(root.parent)))
     data = buf.getvalue()
     return Response(
         content=data,
@@ -1342,11 +1345,19 @@ def _zip_tool_dir(subdir: str, zip_name: str) -> Response:
     )
 
 
+@app.get("/api/tools/connect-installer.zip")
+def api_download_connect_installer(
+    principal: AuthPrincipal = Depends(require_perm("search")),
+) -> Response:
+    return _zip_tool_dir("connect-installer", "darkgreen-connect-installer.zip")
+
+
 @app.get("/api/tools/connect-wizard.zip")
 def api_download_connect_wizard(
     principal: AuthPrincipal = Depends(require_perm("search")),
 ) -> Response:
-    return _zip_tool_dir("connect-wizard", "darkgreen-connect-wizard.zip")
+    # Alias legacy → installer pack
+    return _zip_tool_dir("connect-installer", "darkgreen-connect-installer.zip")
 
 
 @app.get("/api/tools/windows-agent.zip")
