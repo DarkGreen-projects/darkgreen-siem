@@ -1,12 +1,18 @@
 # Documentazione DarkGreen SIEM
 
-| Doc | Contenuto |
-|-----|-----------|
-| [setup-guide.md](setup-guide.md) | Setup lean in 5 passi + installer host |
-| [architecture.md](architecture.md) | Componenti, detection, graph, RAG, sicurezza |
-| [collectors-windows-syslog.md](collectors-windows-syslog.md) | NXLog / rsyslog → UDP 5140 |
+Indice per chi apre il repo su GitHub.
 
-## Diagrammi
+## Percorso consigliato
+
+1. [setup-guide.md](setup-guide.md) - avvio lean in 5 passi + installer host EXE  
+2. [architecture.md](architecture.md) - componenti, detection, graph, RAG, sicurezza  
+3. [collectors-windows-syslog.md](collectors-windows-syslog.md) - NXLog / rsyslog → UDP 5140  
+4. [../tools/connect-installer/README.md](../tools/connect-installer/README.md) - wizard EXE / Linux  
+5. [../tools/windows-agent/README.md](../tools/windows-agent/README.md) - agent Security lean  
+
+README principale: [../README.md](../README.md) · Env: [../.env.example](../.env.example)
+
+## Diagrammi (SVG)
 
 | Asset | Cosa mostra |
 |-------|-------------|
@@ -16,4 +22,15 @@
 | [assets/workbench-turno.svg](assets/workbench-turno.svg) | Coda Turno, briefing, collegati, close |
 | [assets/dashboard-preview.svg](assets/dashboard-preview.svg) | Preview stile dashboard |
 
-Torna al [README principale](../README.md).
+## API utili (lab)
+
+| Endpoint | Ruolo |
+|----------|--------|
+| `GET /health` | Liveness |
+| `GET /api/setup` | Impostazioni lab (admin) |
+| `GET /api/alerts/queue` | Coda Turno |
+| `GET /api/alerts/{id}/brief` | Briefing + fingerprint + connected |
+| `GET /api/alerts/{id}/links` | Grafo alert |
+| `POST /api/alerts/{id}/copilot-suggest` | Suggest local / LLM |
+| `GET /api/tools/connect-installer.zip` | Pack installer host |
+| `GET /api/tools/windows-agent.zip` | Pack agent |

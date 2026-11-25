@@ -2,6 +2,8 @@
 
 Guida lab per allineare Hyper-V / Windows a ciò che vedi in azienda: Security Event Log → collector → UDP `5140` sull’API DarkGreen.
 
+Per il percorso guidato (compatibilità PC, rete, health, heartbeat, agent): usa l’**installer** in [../tools/connect-installer/README.md](../tools/connect-installer/README.md) o la [setup-guide.md](setup-guide.md). Questa pagina resta per NXLog/rsyslog “a mano”.
+
 ## Endpoint
 
 | Canale | Destinazione |
@@ -34,7 +36,7 @@ Utile se un agent Linux (o un relay) inoltra già syslog. Per Windows “puro”
 
 ## Verifica
 
-1. `docker compose up --build`
+1. `docker compose up --build` (lean) oppure `--profile demo` per traffico
 2. Invia un evento JSON di prova:
 
 ```bash

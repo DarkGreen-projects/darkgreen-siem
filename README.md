@@ -15,18 +15,20 @@ Parte del portfolio [DarkGreen Projects](https://github.com/DarkGreen-projects).
 
 | Area | Dettaglio |
 |------|-----------|
-| **Ingest** | HTTP `/api/ingest`, syslog UDP `5140`, seed da `samples/`, traffico continuo via `log-generator` |
+| **Ingest** | HTTP `/api/ingest`, syslog UDP `5140`, seed `samples/`; traffico continuo solo con `--profile demo` |
 | **Normalizzazione** | FortiGate syslog KV + windows / cloud_auth / **siem_export Cynet** (process, hash, MITRE labels) |
 | **Auth / RBAC** | Soft multi-tenant + ruoli admin/analyst/viewer/ingest |
-| **TLS / HA** | Overlay Compose TLS + 2 API dietro nginx (vedi README) |
-| **Ricerca** | Query `field:value` + free-text; **ricerche predefinite** (login_failed, deny, audit_cleared, malware…) |
-| **Dashboard** | EPS, timeline per sorgente, health strip, filtri stato/MITRE, **export CSV** |
-| **Turno** | Workbench coda prioritizzata, briefing, **alert collegati**, hotkeys j/k a i c /, checklist, pivot |
-| **Setup lab** | Retention, silence, purge, TI keys, webhook, **SLA**, **RAG**, **Alert graph**, **Copilot LLM** |
-| **Detection** | YAML match / threshold / correlation; CRUD UI; **dry-run** bench; match `labels.*` |
-| **Alert workflow** | Stati + disposition/note; **MITRE**; dedup; **SLA**; triage score; **Memory RAG**; **alert graph**; copilot |
-| **Sorgenti** | Canali live; **connect-wizard** e **windows-agent** scaricabili; [guida collectors](docs/collectors-windows-syslog.md) |
-| **VirusTotal / TI** | Key in Setup (VT, AbuseIPDB, OTX) + verdict in cache sulle card; correlazione enrich |
+| **TLS / HA** | Overlay Compose TLS + 2 API dietro nginx |
+| **Ricerca** | Query `field:value` + free-text; ricerche predefinite |
+| **Dashboard** | EPS, timeline, health, filtri stato/MITRE/SLA, export CSV (polling lean) |
+| **Turno** | Workbench coda, briefing, **alert collegati**, hotkeys, checklist, pivot |
+| **Setup lab** | Retention, silence, purge, TI, webhook, **SLA**, **RAG**, **Alert graph**, **Copilot** |
+| **Detection** | YAML match / threshold / correlation; dry-run; `labels.*` |
+| **Alert workflow** | Disposition/note; MITRE; dedup; SLA; triage; Memory RAG; alert graph; copilot |
+| **Sorgenti / host** | **Installer EXE** + agent lean; [setup](docs/setup-guide.md) · [collectors](docs/collectors-windows-syslog.md) |
+| **VirusTotal / TI** | VT, AbuseIPDB, OTX in Setup + verdict in cache |
+
+Documentazione: [docs/README.md](docs/README.md) · Setup lean: [docs/setup-guide.md](docs/setup-guide.md) · Architettura: [docs/architecture.md](docs/architecture.md)
 
 ## Avvio rapido
 
@@ -69,11 +71,13 @@ In Compose l’API richiede un Bearer token su `/api/*` (eccetto `POST /api/auth
 - **Playground aperto**: `AUTH_ENABLED=false` richiede anche `ALLOW_INSECURE_NO_AUTH=true` (anti-misconfig)
 - Syslog UDP: max 64 KiB/datagram + rate limit per host (200/s)
 
-### Compressione e performance
+### Lean ops e performance
 
-- **`events.raw`**: zlib automatico sopra ~512 byte (`ZLIB1:` prefix); decompress in API/UI. Linee corte restano plain per ricerca `ILIKE`.
-- **Log API**: `logs/api.log` con rotazione 2MB × 5, backup `.gz` (`LOG_DIR`)
-- **Docker**: driver `json-file` `max-size=10m` / `max-file=3` su tutti i servizi
+- **Compose lean di default**: niente `log-generator` (usa `--profile demo`); `mem_limit` / `cpus` su postgres/api/web/generator; `RULE_INTERVAL_SEC=30`
+- **UI**: polling con pausa tab nascosta; niente doppio `/api/stats` sulla dashboard
+- **API**: timeline stats a query unica; liste alert senza N+1 commenti/audit
+- **`events.raw`**: zlib sopra ~512 byte (`ZLIB1:`); log API rotanti; Docker log `max-size=10m`
+- Dettaglio avvio: [docs/setup-guide.md](docs/setup-guide.md) e [`.env.example`](.env.example)
 
 ### TLS (lab HTTPS)
 
@@ -239,10 +243,10 @@ darkgreen-siem/
 ├── services/
 │   ├── api/               # FastAPI, syslog, regole, RAG, graph, copilot
 │   ├── normalizers/       # parser ECS-lite
-│   └── log-generator/     # traffico demo continuo
+│   └── log-generator/     # traffico demo (profile demo)
 ├── tools/                 # connect-installer (EXE) + windows-agent
 ├── web/                   # UI React + Vite (+ nginx)
-├── docs/                  # architettura + diagrammi SVG
+├── docs/                  # setup, architettura, collectors, SVG
 └── tests/                 # pytest
 ```
 

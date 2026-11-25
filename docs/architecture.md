@@ -91,7 +91,21 @@ Regole YAML sotto `rules/`:
 - **Alert graph**: tabella `alert_links` (relation + score + shared_keys); `link_alert` post-create; mature above `graph_min_history`; `GET /api/alerts/{id}/links`
 - **Fingerprint**: `alert_fingerprint` (title, entity, MITRE, IOC, steps, connected top-K, cases) → brief + Copilot payload
 - **Copilot**: local-first da memoria/grafo; altrimenti mini-LLM con fingerprint (`related_alert_ids` filtrati); fail soft + fallback majority
-- **Connector**: zip wizard e windows-agent sotto `tools/`, download da Sorgenti / `/api/tools/*.zip`
+- **Connector / installer**: `tools/connect-installer` (WinForms + EXE) e `windows-agent` (60s); zip da Sorgenti / `/api/tools/connect-installer.zip`
+- **Lean lab**: Compose senza generator di default (`--profile demo`); `RULE_INTERVAL_SEC`; limiti mem/CPU; UI polling visibility-aware
+
+### Lean ops
+
+```mermaid
+flowchart LR
+  Up[docker compose up] --> Lean[api postgres web]
+  Demo["--profile demo"] --> Gen[log-generator]
+  Gen --> Lean
+  Host[EXE installer] -->|heartbeat agent| API
+  Lean --> API
+```
+
+Vedi [setup-guide.md](setup-guide.md).
 
 ### Flusso alert graph + LLM
 
@@ -108,9 +122,11 @@ Regole YAML sotto `rules/`:
 
 Coda `GET /api/alerts/queue`, briefing `GET /api/alerts/{id}/brief`, link `GET /api/alerts/{id}/links`, suggest `POST /api/alerts/{id}/copilot-suggest`. Hotkeys: `j`/`k` navigazione, `a` ack, `i` in corso, `c` close, `/` pivot, `?` aiuto.
 
-## Collectors
+## Collectors e installer host
 
-Vedi [collectors-windows-syslog.md](collectors-windows-syslog.md) (NXLog / rsyslog → UDP 5140). JSON Windows su syslog è normalizzato come `source_type=windows`.
+- Guida NXLog / rsyslog: [collectors-windows-syslog.md](collectors-windows-syslog.md)
+- Installer a passi (compat, rete, health, auth, agent/NXLog): [../tools/connect-installer/README.md](../tools/connect-installer/README.md)
+- JSON Windows su syslog → `source_type=windows`
 
 ## Porte locali
 

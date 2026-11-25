@@ -2,6 +2,8 @@
 
 Wizard a passi per collegare un PC al SIEM lab.
 
+Setup complessivo del lab: [../../docs/setup-guide.md](../../docs/setup-guide.md).
+
 ## Windows (consigliato)
 
 1. Scarica lo zip da UI **Sorgenti** (o copia questa cartella).
