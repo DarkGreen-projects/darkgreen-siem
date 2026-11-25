@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="420" viewBox="0 0 960 420">
+<rect width="100%" height="100%" fill="#0b1f17"/>
+<text x="24" y="36" fill="#3ddc97" font-family="Segoe UI, Arial" font-size="18" font-weight="700">Lean impact (before → after)</text>
+<rect x="24.0" y="56" width="444.0" height="100" rx="8" fill="#1a3328" stroke="#2d4a3c"/>
+<text x="38.0" y="84" fill="#3ddc97" font-size="14" font-weight="700" font-family="Segoe UI, Arial">log-generator (+35)</text>
+<text x="38.0" y="108" fill="#9bb8a8" font-size="12" font-family="Segoe UI, Arial">prima: sempre ON, INTERVAL 2s</text>
+<text x="38.0" y="128" fill="#e8f5ef" font-size="12" font-family="Segoe UI, Arial">dopo: profile demo, INTERVAL 8s</text>
+<rect x="480.0" y="56" width="444.0" height="100" rx="8" fill="#1a3328" stroke="#2d4a3c"/>
+<text x="494.0" y="84" fill="#3ddc97" font-size="14" font-weight="700" font-family="Segoe UI, Arial">RULE_INTERVAL_SEC (+20)</text>
+<text x="494.0" y="108" fill="#9bb8a8" font-size="12" font-family="Segoe UI, Arial">prima: 15s</text>
+<text x="494.0" y="128" fill="#e8f5ef" font-size="12" font-family="Segoe UI, Arial">dopo: 30s</text>
+<rect x="24.0" y="168" width="444.0" height="100" rx="8" fill="#1a3328" stroke="#2d4a3c"/>
+<text x="38.0" y="196" fill="#3ddc97" font-size="14" font-weight="700" font-family="Segoe UI, Arial">UI /api/stats (+25)</text>
+<text x="38.0" y="220" fill="#9bb8a8" font-size="12" font-family="Segoe UI, Arial">prima: App 10s + Dashboard 5s (doppio)</text>
+<text x="38.0" y="240" fill="#e8f5ef" font-size="12" font-family="Segoe UI, Arial">dopo: Dashboard 10s; App solo off-dashboard 45s; pause tab nascosta</text>
+<rect x="480.0" y="168" width="444.0" height="100" rx="8" fill="#1a3328" stroke="#2d4a3c"/>
+<text x="494.0" y="196" fill="#3ddc97" font-size="14" font-weight="700" font-family="Segoe UI, Arial">Timeline stats (+15)</text>
+<text x="494.0" y="220" fill="#9bb8a8" font-size="12" font-family="Segoe UI, Arial">prima: N query per bucket</text>
+<text x="494.0" y="240" fill="#e8f5ef" font-size="12" font-family="Segoe UI, Arial">dopo: 1 query aggregata</text>
+<rect x="24.0" y="280" width="444.0" height="100" rx="8" fill="#1a3328" stroke="#2d4a3c"/>
+<text x="38.0" y="308" fill="#3ddc97" font-size="14" font-weight="700" font-family="Segoe UI, Arial">Liste alert (+15)</text>
+<text x="38.0" y="332" fill="#9bb8a8" font-size="12" font-family="Segoe UI, Arial">prima: commenti+audit per ogni riga</text>
+<text x="38.0" y="352" fill="#e8f5ef" font-size="12" font-family="Segoe UI, Arial">dopo: include_comments/audit=False su list/queue/stats</text>
+<rect x="480.0" y="280" width="444.0" height="100" rx="8" fill="#1a3328" stroke="#2d4a3c"/>
+<text x="494.0" y="308" fill="#3ddc97" font-size="14" font-weight="700" font-family="Segoe UI, Arial">Windows agent (+10)</text>
+<text x="494.0" y="332" fill="#9bb8a8" font-size="12" font-family="Segoe UI, Arial">prima: default 30s loop</text>
+<text x="494.0" y="352" fill="#e8f5ef" font-size="12" font-family="Segoe UI, Arial">dopo: default 60s + Scheduled Task opzionale</text>
+</svg>

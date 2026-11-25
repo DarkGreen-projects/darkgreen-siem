@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="320" viewBox="0 0 900 320">
+<rect width="100%" height="100%" fill="#0b1f17"/>
+<text x="24" y="32" fill="#3ddc97" font-family="Segoe UI, Arial" font-size="18" font-weight="700">Tests by upgrade area (estimated)</text>
+<rect x="99.9" y="147.2" width="92.9" height="124.8" rx="4" fill="#86efac"/>
+<text x="146.3" y="290" fill="#9bb8a8" font-size="11" text-anchor="middle" font-family="Segoe UI, Arial">auth_rbac</text>
+<text x="146.3" y="141.2" fill="#e8f5ef" font-size="11" text-anchor="middle" font-family="Consolas, monospace">24</text>
+<rect x="232.6" y="116.0" width="92.9" height="156.0" rx="4" fill="#86efac"/>
+<text x="279.0" y="290" fill="#9bb8a8" font-size="11" text-anchor="middle" font-family="Segoe UI, Arial">detection_rule</text>
+<text x="279.0" y="110.0" fill="#e8f5ef" font-size="11" text-anchor="middle" font-family="Consolas, monospace">30</text>
+<rect x="365.2" y="157.6" width="92.9" height="114.4" rx="4" fill="#86efac"/>
+<text x="411.7" y="290" fill="#9bb8a8" font-size="11" text-anchor="middle" font-family="Segoe UI, Arial">triage_workben</text>
+<text x="411.7" y="151.6" fill="#e8f5ef" font-size="11" text-anchor="middle" font-family="Consolas, monospace">22</text>
+<rect x="497.9" y="183.6" width="92.9" height="88.4" rx="4" fill="#86efac"/>
+<text x="544.3" y="290" fill="#9bb8a8" font-size="11" text-anchor="middle" font-family="Segoe UI, Arial">alert_graph_ra</text>
+<text x="544.3" y="177.60000000000002" fill="#e8f5ef" font-size="11" text-anchor="middle" font-family="Consolas, monospace">17</text>
+<rect x="630.6" y="64.0" width="92.9" height="208.0" rx="4" fill="#86efac"/>
+<text x="677.0" y="290" fill="#9bb8a8" font-size="11" text-anchor="middle" font-family="Segoe UI, Arial">security_lean</text>
+<text x="677.0" y="58.0" fill="#e8f5ef" font-size="11" text-anchor="middle" font-family="Consolas, monospace">40</text>
+<rect x="763.2" y="194.0" width="92.9" height="78.0" rx="4" fill="#86efac"/>
+<text x="809.7" y="290" fill="#9bb8a8" font-size="11" text-anchor="middle" font-family="Segoe UI, Arial">parsers</text>
+<text x="809.7" y="188.0" fill="#e8f5ef" font-size="11" text-anchor="middle" font-family="Consolas, monospace">15</text>
+</svg>

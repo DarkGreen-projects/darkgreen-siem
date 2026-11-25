@@ -261,6 +261,19 @@ cd web && npm install && npm run dev
 
 L’API richiede Postgres (`DATABASE_URL`). Il percorso più semplice resta `docker compose up`.
 
+### Lab proof (report + immagini)
+
+A ogni upgrade:
+
+```bash
+python -m tests.lab_proof
+pytest tests/test_lab_proof_report.py tests/test_optimization_regressions.py -q
+```
+
+Output versionato anche in **[docs/lab-reports/latest/](docs/lab-reports/latest/)** (stesso contenuto di `tests/lab_proof/out/latest/`): `report.md`, `report.html`, `metrics.json`, `charts/*.svg`.
+
+Indice report: [docs/lab-reports/README.md](docs/lab-reports/README.md).
+
 ## Ecosistema
 
 | Progetto | Ruolo |

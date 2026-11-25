@@ -9,8 +9,16 @@ Indice per chi apre il repo su GitHub.
 3. [collectors-windows-syslog.md](collectors-windows-syslog.md) - NXLog / rsyslog → UDP 5140  
 4. [../tools/connect-installer/README.md](../tools/connect-installer/README.md) - wizard EXE / Linux  
 5. [../tools/windows-agent/README.md](../tools/windows-agent/README.md) - agent Security lean  
+6. [../tests/lab_proof/README.md](../tests/lab_proof/README.md) - mini-report regole / copertura / lean impact  
 
 README principale: [../README.md](../README.md) · Env: [../.env.example](../.env.example)
+
+### Lab reports pubblicati
+
+Report versionati (Markdown + HTML + SVG + JSON):
+
+- Indice: [lab-reports/README.md](lab-reports/README.md)
+- Ultimo: [lab-reports/latest/report.md](lab-reports/latest/report.md)
 
 ## Diagrammi (SVG)
 

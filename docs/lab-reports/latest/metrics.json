@@ -1,0 +1,236 @@
+{
+  "generated_at": "2026-11-25T12:28:35.307480+00:00",
+  "repo": "C:\\Users\\feded\\Projects\\darkgreen-siem",
+  "rules": {
+    "by_type": {
+      "threshold": 3,
+      "match": 7,
+      "correlation": 2
+    },
+    "by_severity": {
+      "high": 5,
+      "critical": 5,
+      "medium": 2
+    },
+    "mitre_techniques": {
+      "T1204": 2,
+      "T1105": 1,
+      "T1059": 1
+    },
+    "coverage": {
+      "rules_total": 12,
+      "rules_enabled_pct": 100.0,
+      "mitre_pct": 25.0,
+      "threat_brief_pct": 100.0,
+      "quality_score": 73.8
+    },
+    "top_impact_rules": [
+      {
+        "id": "spray-then-malicious-ip",
+        "name": "Spray then malicious IP",
+        "type": "correlation",
+        "severity": "critical",
+        "enabled": true,
+        "mitre": [],
+        "has_threat_brief": true,
+        "impact_weight": 9,
+        "cooldown_minutes": 60,
+        "window_minutes": 30
+      },
+      {
+        "id": "spray-then-success",
+        "name": "Spray then successful logon",
+        "type": "correlation",
+        "severity": "critical",
+        "enabled": true,
+        "mitre": [],
+        "has_threat_brief": true,
+        "impact_weight": 9,
+        "cooldown_minutes": 60,
+        "window_minutes": 30
+      },
+      {
+        "id": "cynet-malware-hash",
+        "name": "Cynet malware with file hash",
+        "type": "match",
+        "severity": "critical",
+        "enabled": true,
+        "mitre": [
+          "T1204",
+          "T1105"
+        ],
+        "has_threat_brief": true,
+        "impact_weight": 7,
+        "cooldown_minutes": 30,
+        "window_minutes": 60
+      },
+      {
+        "id": "malware-siem-export",
+        "name": "Endpoint malware from SIEM export",
+        "type": "match",
+        "severity": "critical",
+        "enabled": true,
+        "mitre": [
+          "T1204"
+        ],
+        "has_threat_brief": true,
+        "impact_weight": 7,
+        "cooldown_minutes": 30,
+        "window_minutes": 60
+      },
+      {
+        "id": "cynet-suspicious-process",
+        "name": "Cynet suspicious process",
+        "type": "match",
+        "severity": "high",
+        "enabled": true,
+        "mitre": [
+          "T1059"
+        ],
+        "has_threat_brief": true,
+        "impact_weight": 6,
+        "cooldown_minutes": 20,
+        "window_minutes": 60
+      },
+      {
+        "id": "windows-audit-cleared",
+        "name": "Windows security audit log cleared",
+        "type": "match",
+        "severity": "critical",
+        "enabled": true,
+        "mitre": [],
+        "has_threat_brief": true,
+        "impact_weight": 6,
+        "cooldown_minutes": 60,
+        "window_minutes": 60
+      },
+      {
+        "id": "brute-force-windows",
+        "name": "Windows brute-force login",
+        "type": "threshold",
+        "severity": "high",
+        "enabled": true,
+        "mitre": [],
+        "has_threat_brief": true,
+        "impact_weight": 5,
+        "cooldown_minutes": 15,
+        "window_minutes": 10
+      },
+      {
+        "id": "cloud-auth-failures",
+        "name": "Cloud identity failures",
+        "type": "threshold",
+        "severity": "high",
+        "enabled": true,
+        "mitre": [],
+        "has_threat_brief": true,
+        "impact_weight": 5,
+        "cooldown_minutes": 15,
+        "window_minutes": 15
+      }
+    ]
+  },
+  "tests": {
+    "files": 21,
+    "tests_estimated": 142,
+    "by_file": {
+      "test_alert_graph": 9,
+      "test_alert_search": 3,
+      "test_alert_sla": 9,
+      "test_auth_and_windows": 10,
+      "test_correlation_vt_audit": 7,
+      "test_cynet_notify_dedup": 9,
+      "test_enrich_keys_correlation": 7,
+      "test_fortigate_parser": 6,
+      "test_input_validation": 7,
+      "test_lab_ops": 6,
+      "test_lab_proof_report": 2,
+      "test_normalizers_search": 6,
+      "test_optimization_regressions": 7,
+      "test_rag_memory": 8,
+      "test_rbac_tenant": 3,
+      "test_rule_create": 7,
+      "test_security_compress": 7,
+      "test_security_hardening": 11,
+      "test_stats_helpers": 5,
+      "test_triage_learning": 5,
+      "test_workbench_copilot": 8
+    },
+    "by_upgrade_area": {
+      "auth_rbac": 24,
+      "detection_rules": 30,
+      "triage_workbench": 22,
+      "alert_graph_rag": 17,
+      "security_lean": 40,
+      "parsers": 15
+    }
+  },
+  "lean": {
+    "checks": {
+      "compose_has_demo_profile": true,
+      "compose_rule_interval_30": true,
+      "compose_mem_limits": true,
+      "env_lean_docs": true,
+      "installer_ps1": true,
+      "installer_cmd": true,
+      "installer_exe_or_build": true,
+      "setup_guide": true,
+      "visible_interval_hook": true
+    },
+    "passed": 9,
+    "total": 9,
+    "pass_pct": 100.0,
+    "lean_impact": [
+      {
+        "id": "log_generator",
+        "title": "log-generator",
+        "before": "sempre ON, INTERVAL 2s",
+        "after": "profile demo, INTERVAL 8s",
+        "impact": "CPU/IO continuo eliminato nel default; ~4x meno eventi in demo",
+        "score_delta": 35
+      },
+      {
+        "id": "rule_interval",
+        "title": "RULE_INTERVAL_SEC",
+        "before": "15s",
+        "after": "30s",
+        "impact": "Meta scansioni regole / minuto",
+        "score_delta": 20
+      },
+      {
+        "id": "stats_polling",
+        "title": "UI /api/stats",
+        "before": "App 10s + Dashboard 5s (doppio)",
+        "after": "Dashboard 10s; App solo off-dashboard 45s; pause tab nascosta",
+        "impact": "Meno carico API/DB a idle e in background",
+        "score_delta": 25
+      },
+      {
+        "id": "timeline_sql",
+        "title": "Timeline stats",
+        "before": "N query per bucket",
+        "after": "1 query aggregata",
+        "impact": "Latenza /api/stats piu stabile",
+        "score_delta": 15
+      },
+      {
+        "id": "alert_list_n1",
+        "title": "Liste alert",
+        "before": "commenti+audit per ogni riga",
+        "after": "include_comments/audit=False su list/queue/stats",
+        "impact": "Meno round-trip DB su dashboard/coda",
+        "score_delta": 15
+      },
+      {
+        "id": "agent_interval",
+        "title": "Windows agent",
+        "before": "default 30s loop",
+        "after": "default 60s + Scheduled Task opzionale",
+        "impact": "Footprint host dimezzato in polling",
+        "score_delta": 10
+      }
+    ],
+    "lean_impact_score": 120
+  },
+  "pytest": null
+}

@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="utf-8"/>
+  <title>DarkGreen lab proof</title>
+  <style>
+    body { font-family: Segoe UI, Arial, sans-serif; background:#0b1f17; color:#e8f5ef; margin:0; padding:2rem; }
+    a { color:#3ddc97; }
+    .card { background:#1a3328; border:1px solid #2d4a3c; border-radius:10px; padding:1rem 1.25rem; margin:1rem 0; }
+    .kpi { display:inline-block; margin-right:1.5rem; }
+    .kpi b { color:#3ddc97; font-size:1.4rem; }
+    img { max-width:100%; background:#122820; border-radius:8px; margin:0.75rem 0; }
+    code { color:#86efac; }
+    table { border-collapse: collapse; width:100%; }
+    th, td { border-bottom:1px solid #2d4a3c; padding:0.4rem 0.5rem; text-align:left; }
+  </style>
+</head>
+<body>
+  <h1>DarkGreen SIEM - Lab proof</h1>
+  <p>Generato <code>2026-11-25T12:28:35.307480+00:00</code></p>
+  <div class="card">
+    <div class="kpi">Rules <b>12</b></div>
+    <div class="kpi">Quality <b>73.8</b></div>
+    <div class="kpi">MITRE% <b>25.0</b></div>
+    <div class="kpi">Lean checks <b>9/9</b></div>
+    <div class="kpi">Tests ~ <b>142</b></div>
+  </div>
+  <div class="card">
+    <h2>Charts</h2>
+    <img src="charts/lean_impact.svg" alt="lean impact"/>
+    <img src="charts/rule_quality.svg" alt="rule quality"/>
+    <img src="charts/rules_by_type.svg" alt="rules by type"/>
+    <img src="charts/rules_by_severity.svg" alt="rules by severity"/>
+    <img src="charts/mitre_coverage.svg" alt="mitre"/>
+    <img src="charts/tests_by_upgrade_area.svg" alt="tests by area"/>
+  </div>
+  <div class="card">
+    <p>Dettaglio Markdown: <a href="report.md">report.md</a> · JSON: <a href="metrics.json">metrics.json</a></p>
+  </div>
+</body>
+</html>
