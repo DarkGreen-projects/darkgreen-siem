@@ -274,9 +274,9 @@ Output versionato anche in **[docs/lab-reports/latest/](docs/lab-reports/latest/
 
 Indice report: [docs/lab-reports/README.md](docs/lab-reports/README.md).
 
-## Novita lab (2026-11-25)
+## Novita lab (2026-11-27)
 
-Screenshot aggiornato dalla dashboard live dopo populate di test (~572 eventi / ~289 alert). Report: [docs/lab-reports/latest/lab-populate-report.md](docs/lab-reports/latest/lab-populate-report.md).
+Hardening security, triage anti-noise, Copilot audit, stress harness 1k/5k GREEN. Report: [docs/lab-reports/latest/stress-report.md](docs/lab-reports/latest/stress-report.md). Commit `84cebe9`.
 
 ### Bug e falli corretti in questa versione
 
@@ -291,6 +291,23 @@ Dettaglio completo (sintomo, causa, perche, fix) nelle Issues chiuse con label `
 | [#5](https://github.com/DarkGreen-projects/darkgreen-siem/issues/5) | Bottoni UI bianchi (Salva / Conferma / installer) |
 | [#6](https://github.com/DarkGreen-projects/darkgreen-siem/issues/6) | Filtri stato: allineamento MITRE/SLA |
 | [#7](https://github.com/DarkGreen-projects/darkgreen-siem/issues/7) | Ricerca: Stato, wiki query, export CSV |
+| [#8](https://github.com/DarkGreen-projects/darkgreen-siem/issues/8) | Syslog UDP: secret vuoto, ingest sync, compare non timing-safe |
+| [#9](https://github.com/DarkGreen-projects/darkgreen-siem/issues/9) | Compose HA/TLS: secret hardcodati e porta API esposta |
+| [#10](https://github.com/DarkGreen-projects/darkgreen-siem/issues/10) | Connect installer: token ingest in chiaro in Scheduled Task |
+| [#11](https://github.com/DarkGreen-projects/darkgreen-siem/issues/11) | Egress SSRF CGNAT/metadata e rate limit spoofabile via XFF |
+| [#12](https://github.com/DarkGreen-projects/darkgreen-siem/issues/12) | Detection: threshold SQL ignorava `labels.*`; YAML non validato |
+| [#13](https://github.com/DarkGreen-projects/darkgreen-siem/issues/13) | Auth/session: pipe nello username; PBKDF2 debole; EXP_KEY |
+| [#14](https://github.com/DarkGreen-projects/darkgreen-siem/issues/14) | Copilot/notify: `int()` su related ids; httpx bypass pin egress |
+| [#15](https://github.com/DarkGreen-projects/darkgreen-siem/issues/15) | UI: logout su errore me(); CSV/Search/purge/download |
+| [#16](https://github.com/DarkGreen-projects/darkgreen-siem/issues/16) | API root e mask chiavi TI con coda in chiaro |
+| [#17](https://github.com/DarkGreen-projects/darkgreen-siem/issues/17) | Hardening High: secret deboli startup + syslog secret obbligatorio |
+| [#18](https://github.com/DarkGreen-projects/darkgreen-siem/issues/18) | Rate limit spoofabile e bucket solo in-memory |
+| [#19](https://github.com/DarkGreen-projects/darkgreen-siem/issues/19) | Redazione LLM, sanitize RAG e audit Copilot |
+| [#20](https://github.com/DarkGreen-projects/darkgreen-siem/issues/20) | Triage: backfill score/noise_hint + fingerprint hash |
+| [#21](https://github.com/DarkGreen-projects/darkgreen-siem/issues/21) | Workbench/Dashboard: campaign_id e paginazione offset |
+| [#22](https://github.com/DarkGreen-projects/darkgreen-siem/issues/22) | Detection: correlazione spray-success e asset lab |
+| [#23](https://github.com/DarkGreen-projects/darkgreen-siem/issues/23) | Alert graph: UniqueViolation su `alert_links` |
+| [#24](https://github.com/DarkGreen-projects/darkgreen-siem/issues/24) | Lab stress harness e gate CI (pytest + stress-lab) |
 
 Lista: [Issues chiuse (bug fixed)](https://github.com/DarkGreen-projects/darkgreen-siem/issues?q=is%3Aissue+label%3Afixed+is%3Aclosed).
 
