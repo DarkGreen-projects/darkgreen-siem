@@ -25,7 +25,7 @@ Report versionati (Markdown + HTML + SVG + JSON):
 
 ### Issue chiuse (fixed + lab)
 
-Tabella completa nel [README root](../README.md#bug-e-falli-corretti-in-questa-versione) (#1–#24).  
+Tabella completa nel [README root](../README.md#bug-e-falle-corrette-in-questa-versione) (#1–#24).  
 Filtro GitHub: [label:fixed is:closed](https://github.com/DarkGreen-projects/darkgreen-siem/issues?q=is%3Aissue+label%3Afixed+is%3Aclosed).
 
 ## Diagrammi (SVG)

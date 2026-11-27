@@ -290,7 +290,7 @@ Indice: [docs/lab-reports/README.md](docs/lab-reports/README.md). CI: pytest + g
 
 Hardening security, triage anti-noise, Copilot audit, stress harness 1k/5k GREEN. Report: [docs/lab-reports/latest/stress-report.md](docs/lab-reports/latest/stress-report.md). Commit `84cebe9`.
 
-### Bug e falli corretti in questa versione
+### Bug e falle corrette in questa versione
 
 Dettaglio completo (sintomo, causa, perche, fix) nelle Issues chiuse con label `fixed` + `lab`:
 
