@@ -23,12 +23,13 @@ Parte del portfolio [DarkGreen Projects](https://github.com/DarkGreen-projects).
 | **Dashboard** | EPS, timeline, health, filtri stato/MITRE/SLA, export CSV (polling lean) |
 | **Turno** | Workbench coda, briefing, **alert collegati**, hotkeys, checklist, pivot |
 | **Setup lab** | Retention, silence, purge, TI, webhook, **SLA**, **RAG**, **Alert graph**, **Copilot** |
-| **Detection** | YAML match / threshold / correlation; dry-run; `labels.*` |
-| **Alert workflow** | Disposition/note; MITRE; dedup; SLA; triage; Memory RAG; alert graph; copilot |
+| **Detection** | YAML match / threshold / correlation; dry-run; `labels.*`; fail-soft sotto stress |
+| **Alert workflow** | Disposition/note; MITRE; dedup; SLA; triage anti-noise; fingerprint; campaign; bulk-close; Memory RAG; graph; Copilot audit |
+| **Sicurezza lab** | Secret strict, syslog secret obbligatorio, rate buckets Postgres, egress SSRF, redazione LLM |
 | **Sorgenti / host** | **Installer EXE** + agent lean; [setup](docs/setup-guide.md) · [collectors](docs/collectors-windows-syslog.md) |
 | **VirusTotal / TI** | VT, AbuseIPDB, OTX in Setup + verdict in cache |
 
-Documentazione: [docs/README.md](docs/README.md) · Setup lean: [docs/setup-guide.md](docs/setup-guide.md) · Architettura: [docs/architecture.md](docs/architecture.md)
+Documentazione: [docs/README.md](docs/README.md) · Setup: [docs/setup-guide.md](docs/setup-guide.md) · Sicurezza: [docs/security.md](docs/security.md) · Architettura: [docs/architecture.md](docs/architecture.md)
 
 ## Avvio rapido
 
@@ -69,7 +70,9 @@ In Compose l’API richiede un Bearer token su `/api/*` (eccetto `POST /api/auth
 - **Multi-tenant soft**: colonna `tenant_id` (default `lab`); ogni utente vede solo il proprio tenant
 - **Ingest / log-generator**: header `Authorization: Bearer <SIEM_API_TOKEN>` (ruolo ingest)
 - **Playground aperto**: `AUTH_ENABLED=false` richiede anche `ALLOW_INSECURE_NO_AUTH=true` (anti-misconfig)
-- Syslog UDP: max 64 KiB/datagram + rate limit per host (200/s)
+- Syslog UDP: `SYSLOG_SHARED_SECRET` obbligatorio (prefisso messaggio), max 64 KiB/datagram, rate limit per host, compare timing-safe
+- Rate limit login/ingest con bucket Postgres (HA-friendly); `TRUST_X_FORWARDED_FOR` solo dietro proxy fidato
+- Dettaglio hardening: [docs/security.md](docs/security.md)
 
 ### Lean ops e performance
 
@@ -158,26 +161,27 @@ Alla chiusura di un alert sono obbligatori:
 - **disposition**: `true_positive` | `false_positive` | `benign` | `duplicate` | `tuning_needed`
 - **closure_note** (min 10 caratteri)
 
-Lo score `risk_score` / `noise_hint` usa severity, MITRE, occurrences e priors dalle chiusure passate stessa regola+entity. Solo suggerimenti (badge + alert simili): **nessun blocco automatico**. Setup: toggle scoring + finestra giorni.
+Lo score `risk_score` / `noise_hint` usa severity, MITRE, occurrences e priors dalle chiusure passate stessa regola+entity. Backfill allo startup/merge per alert legacy; `fingerprint_hash` stabile. Solo suggerimenti (badge + alert simili): **nessun blocco automatico**. Setup: toggle scoring + finestra giorni.
 
-API: `GET /api/alerts/{id}/similar`, filtro `?disposition=`.
+API: `GET /api/alerts/{id}/similar`, filtri `?disposition=` / `?noise_hint=`, bulk `POST /api/alerts/bulk-close`.
 
 ### Workbench Turno + Copilot + Alert Memory RAG
 
-Tab **Turno**: coda `open`/`in_progress` ordinata (SLA breached > at_risk > likely_signal > severity > età), dettaglio con briefing locale, checklist in `sessionStorage`, pivot 1-click verso Ricerca.
+Tab **Turno**: coda `open`/`in_progress` ordinata (SLA breached > at_risk > likely_signal > severity > età), `campaign_id` per cluster grafo, lane rumore deprioritizzata, briefing locale, checklist in `sessionStorage`, pivot 1-click verso Ricerca. Dashboard con offset / load more.
 
 Hotkeys (Workbench e card in focus): `j`/`k` navigazione, `a` ack, `i` in corso, `c` close dialog, `/` pivot, `?` aiuto.
 
-**Alert Memory RAG** (portatile): a ogni chiusura l’alert entra in `alert_memory` (testo + FTS Postgres). Il suggest è **local-first** (priors forti → zero LLM), altrimenti mini-LLM con top-K casi dell’ambiente. Export JSON da Setup per hub esterni.
+**Alert Memory RAG** (portatile): a ogni chiusura l’alert entra in `alert_memory` (testo + FTS Postgres, sanitize). Suggest **local-first** (priors forti → zero LLM), altrimenti mini-LLM con fingerprint redatto. Feedback thumbs → boost retrieve. Export JSON da Setup.
 
-**Alert graph**: a create/merge normalizza `entity_keys` e scrive archi in `alert_links` (`same_entity`, `shared_ioc`; con storia sufficiente anche `temporal_follows` / `mitre_chain`). Brief e Copilot usano fingerprint strutturato + vicini del grafo (`related_alert_ids`).
+**Alert graph**: a create/merge normalizza `entity_keys` e scrive archi in `alert_links` (dedupe anti-UniqueViolation). Brief e Copilot usano fingerprint + vicini (`related_alert_ids` filtrati). Audit `CopilotAudit`.
 
 | Endpoint | Ruolo |
 |----------|--------|
-| `GET /api/alerts/queue` | Coda prioritizzata |
+| `GET /api/alerts/queue` | Coda prioritizzata + `campaign_id` |
 | `GET /api/alerts/{id}/brief` | Briefing + fingerprint + connected + casi |
 | `GET /api/alerts/{id}/links` | Vicini grafo |
-| `POST /api/alerts/{id}/copilot-suggest` | Suggest `local_memory` / `llm_rag` (fail soft) |
+| `POST /api/alerts/{id}/copilot-suggest` | Suggest `local_memory` / `llm_rag` (fail soft + audit) |
+| `POST /api/alerts/bulk-close` | Chiusura massiva FP / rumore |
 | `GET /api/memory/stats` | Contatori memoria tenant |
 | `GET /api/memory/export` | Export JSON (admin) |
 
@@ -238,16 +242,18 @@ samples / syslog / HTTP  →  FastAPI + normalizers  →  Postgres
 ```text
 darkgreen-siem/
 ├── docker-compose.yml
+├── .github/workflows/     # ci.yml (pytest) + stress-lab.yml
 ├── rules/                 # regole detection YAML
-├── samples/               # log multi-vendor fittizi
+├── samples/               # log multi-vendor + lab_assets.json
+├── scripts/               # stress populate/measure, TLS helpers
 ├── services/
-│   ├── api/               # FastAPI, syslog, regole, RAG, graph, copilot
+│   ├── api/               # FastAPI, syslog, regole, RAG, graph, copilot, triage
 │   ├── normalizers/       # parser ECS-lite
 │   └── log-generator/     # traffico demo (profile demo)
 ├── tools/                 # connect-installer (EXE) + windows-agent
 ├── web/                   # UI React + Vite (+ nginx)
-├── docs/                  # setup, architettura, collectors, SVG
-└── tests/                 # pytest
+├── docs/                  # setup, security, architettura, collectors, lab-reports
+└── tests/                 # pytest + lab_proof
 ```
 
 ## Sviluppo locale
@@ -261,18 +267,24 @@ cd web && npm install && npm run dev
 
 L’API richiede Postgres (`DATABASE_URL`). Il percorso più semplice resta `docker compose up`.
 
-### Lab proof (report + immagini)
+### Lab proof + stress
 
 A ogni upgrade:
 
 ```bash
 python -m tests.lab_proof
-pytest tests/test_lab_proof_report.py tests/test_optimization_regressions.py -q
+pytest -q
 ```
 
-Output versionato anche in **[docs/lab-reports/latest/](docs/lab-reports/latest/)** (stesso contenuto di `tests/lab_proof/out/latest/`): `report.md`, `report.html`, `metrics.json`, `charts/*.svg`.
+Stress live (lab Docker su):
 
-Indice report: [docs/lab-reports/README.md](docs/lab-reports/README.md).
+```bash
+python scripts/lab_stress_populate.py --events 1000 --profile mix --login --seed-dispositions 10
+python scripts/lab_stress_measure.py --login
+```
+
+Output in **[docs/lab-reports/latest/](docs/lab-reports/latest/)**: `report.md` / charts (lab_proof) e `stress-report.md` / `stress-metrics.json`.  
+Indice: [docs/lab-reports/README.md](docs/lab-reports/README.md). CI: pytest + gate stress.
 
 ## Novita lab (2026-11-27)
 

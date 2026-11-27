@@ -26,3 +26,15 @@ pytest tests/test_lab_proof_report.py tests/test_optimization_regressions.py -q
 ```
 
 Queste prove vanno eseguite a ogni upgrade: validano lean Compose, installer, moduli graph/RAG e rigenerano gli artifact del report.
+
+## Stress harness (live lab)
+
+Oltre al lab_proof statico, per latenza/noise sotto carico:
+
+```bash
+python scripts/lab_stress_populate.py --events 1000 --profile mix --login --seed-dispositions 10
+python scripts/lab_stress_measure.py --login
+```
+
+Report pubblicati in [docs/lab-reports/latest/stress-report.md](../../docs/lab-reports/latest/stress-report.md).  
+Gate CI: `.github/workflows/stress-lab.yml`. Pytest hardening: `tests/test_hardening_enhancements.py`.
