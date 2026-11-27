@@ -11,7 +11,7 @@ from unittest.mock import MagicMock, patch
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from services.api.copilot import suggest_closure
+from services.api.copilot import should_call_llm, suggest_closure
 from services.api.triage_brief import build_alert_brief, queue_sort_key
 
 
@@ -53,6 +53,40 @@ def test_queue_sort_signal_before_noise():
     rows = [noise, signal]
     rows.sort(key=queue_sort_key)
     assert rows[0] is signal
+
+
+def test_queue_sort_cluster_bonus():
+    now = datetime.now(timezone.utc)
+    lonely = _alert_out(
+        noise_hint="likely_signal",
+        severity="high",
+        cluster_size=0,
+        created_at=now,
+    )
+    campaign = _alert_out(
+        noise_hint="likely_signal",
+        severity="high",
+        cluster_size=5,
+        created_at=now,
+    )
+    rows = [lonely, campaign]
+    rows.sort(key=queue_sort_key)
+    assert rows[0] is campaign
+
+
+def test_llm_gate_skips_likely_noise_with_fp_priors():
+    ok, reason = should_call_llm(
+        {"noise_hint": "likely_noise", "similar_fp": 3, "similar_tp": 0},
+        local_confidence=False,
+    )
+    assert ok is False
+    assert "likely_noise" in reason
+
+
+def test_llm_gate_skips_when_local_confident():
+    ok, reason = should_call_llm({"noise_hint": "unclear"}, local_confidence=True)
+    assert ok is False
+    assert reason == "local_rag_confident"
 
 
 def test_build_alert_brief_entities_and_pivot():
@@ -145,6 +179,9 @@ def test_copilot_suggest_parses_llm_json():
         llm_api_key="sk-test",
         llm_api_url="https://example.test/v1/chat/completions",
         llm_model="gpt-4o-mini",
+        llm_effort="low",
+        rag_top_k=5,
+        triage_scoring_enabled=True,
     )
     fake_resp = MagicMock()
     fake_resp.status_code = 200
@@ -155,24 +192,16 @@ def test_copilot_suggest_parses_llm_json():
                     "content": (
                         '{"disposition":"false_positive",'
                         '"note":"Verificato traffic benigno da scanner interno.",'
-                        '"rationale":"Molti FP simili"}'
+                        '"rationale":"Molti FP simili",'
+                        '"priority":"p3","noise_action":"demote"}'
                     )
                 }
             }
         ]
     }
-    fake_client = MagicMock()
-    fake_client.__enter__.return_value = fake_client
-    fake_client.__exit__.return_value = None
-    fake_client.post.return_value = fake_resp
-
     with (
         patch("services.api.copilot.get_lab_state", return_value=state),
-        patch(
-            "services.api.url_safety.validate_egress_url",
-            side_effect=lambda u, purpose="egress": u,
-        ),
-        patch("services.api.copilot.httpx.Client", return_value=fake_client),
+        patch("services.api.url_safety.egress_post", return_value=fake_resp) as post,
     ):
         out = suggest_closure(
             {
@@ -186,8 +215,10 @@ def test_copilot_suggest_parses_llm_json():
     assert out["available"] is True
     assert out["source"] == "llm_rag"
     assert out["suggested_disposition"] == "false_positive"
+    assert out["priority"] == "p3"
+    assert out["noise_action"] == "demote"
     assert "scanner" in (out["suggested_note"] or "").lower()
-    fake_client.post.assert_called_once()
+    post.assert_called_once()
 
 
 def test_copilot_http_error_fail_soft():
@@ -196,22 +227,17 @@ def test_copilot_http_error_fail_soft():
         llm_api_key="sk-test",
         llm_api_url="https://example.test/v1/chat/completions",
         llm_model="gpt-4o-mini",
+        llm_effort="low",
+        rag_top_k=5,
+        triage_scoring_enabled=True,
     )
     fake_resp = MagicMock()
     fake_resp.status_code = 500
     fake_resp.text = "boom"
-    fake_client = MagicMock()
-    fake_client.__enter__.return_value = fake_client
-    fake_client.__exit__.return_value = None
-    fake_client.post.return_value = fake_resp
 
     with (
         patch("services.api.copilot.get_lab_state", return_value=state),
-        patch(
-            "services.api.url_safety.validate_egress_url",
-            side_effect=lambda u, purpose="egress": u,
-        ),
-        patch("services.api.copilot.httpx.Client", return_value=fake_client),
+        patch("services.api.url_safety.egress_post", return_value=fake_resp),
     ):
         out = suggest_closure({"summary": "x"})
     assert out["available"] is False

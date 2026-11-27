@@ -31,10 +31,10 @@ services:
       DATABASE_URL: postgresql+psycopg://siem:siem@postgres:5432/darkgreen_siem
       RULES_DIR: /app/rules
       SAMPLES_DIR: /app/samples
-      # WARNING: 0.0.0.0 + published 5140/udp is lab-only. Prefer SYSLOG_SHARED_SECRET.
+      # WARNING: 0.0.0.0 + published 5140/udp is lab-only. Default secret required for UDP ingest.
       SYSLOG_HOST: ${SYSLOG_HOST:-0.0.0.0}
       SYSLOG_PORT: "5140"
-      SYSLOG_SHARED_SECRET: ${SYSLOG_SHARED_SECRET:-}
+      SYSLOG_SHARED_SECRET: ${SYSLOG_SHARED_SECRET:-dg-lab-syslog}
       SEED_ON_START: "true"
       LOG_DIR: /app/logs
       CORS_ORIGINS: http://localhost:8080,http://127.0.0.1:8080
@@ -62,7 +62,7 @@ services:
       RUN_BACKGROUND_JOBS: "true"
     ports:
       - "8000:8000"
-      # WARNING: unauthenticated unless SYSLOG_SHARED_SECRET is set
+      # UDP ingest requires SYSLOG_SHARED_SECRET (compose default: dg-lab-syslog)
       - "5140:5140/udp"
     volumes:
       - ./rules:/app/rules:rw
@@ -97,6 +97,7 @@ services:
       API_URL: http://api:8000
       SYSLOG_HOST: api
       SYSLOG_PORT: "5140"
+      SYSLOG_SHARED_SECRET: ${SYSLOG_SHARED_SECRET:-dg-lab-syslog}
       INTERVAL_SEC: ${INTERVAL_SEC:-8}
       SIEM_API_TOKEN: ${SIEM_API_TOKEN:-dg-lab-token-compose}
     depends_on:

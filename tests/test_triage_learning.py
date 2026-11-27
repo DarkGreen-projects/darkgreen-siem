@@ -43,6 +43,17 @@ def test_score_fp_priors_likely_noise():
     assert out["risk_score"] < 40
 
 
+def test_score_ti_malicious_floor():
+    alert = SimpleNamespace(
+        severity="low",
+        mitre=None,
+        evidence={"occurrences": 1},
+    )
+    out = compute_triage_score(alert, priors={}, ti_malicious=True)
+    assert out["risk_score"] >= 65
+    assert out["noise_hint"] == "likely_signal"
+
+
 def test_score_zero_clamp():
     alert = SimpleNamespace(severity="low", mitre=None, evidence={})
     out = compute_triage_score(

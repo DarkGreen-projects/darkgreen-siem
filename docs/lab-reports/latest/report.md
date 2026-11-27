@@ -1,16 +1,16 @@
 # DarkGreen SIEM - Lab proof mini-report
 
-Generato: `2026-11-25T12:28:57.232424+00:00`
+Generato: `2026-11-27T09:25:14.073709+00:00`
 
 Report automatico su regole, copertura, test delle upgrade e impatto lean.
 
 ## Rule coverage
 
-- Regole totali: **12**
+- Regole totali: **13**
 - Enabled: **100.0%**
-- Con MITRE: **25.0%**
+- Con MITRE: **30.8%**
 - Con threat brief: **100.0%**
-- Quality score (0-100): **73.8**
+- Quality score (0-100): **75.8**
 
 ![Rules by type](charts/rules_by_type.svg)
 
@@ -24,6 +24,7 @@ Report automatico su regole, copertura, test delle upgrade e impatto lean.
 
 | id | type | severity | mitre | weight |
 |----|------|----------|-------|--------|
+| `spray-success-process` | correlation | critical | T1110,T1078,T1059 | 11 |
 | `spray-then-malicious-ip` | correlation | critical | - | 9 |
 | `spray-then-success` | correlation | critical | - | 9 |
 | `cynet-malware-hash` | match | critical | T1204,T1105 | 7 |
@@ -31,12 +32,11 @@ Report automatico su regole, copertura, test delle upgrade e impatto lean.
 | `cynet-suspicious-process` | match | high | T1059 | 6 |
 | `windows-audit-cleared` | match | critical | - | 6 |
 | `brute-force-windows` | threshold | high | - | 5 |
-| `cloud-auth-failures` | threshold | high | - | 5 |
 
 ## Test suite (upgrade map)
 
-- File test: **21**
-- Test stimati (`def test_`): **142**
+- File test: **22**
+- Test stimati (`def test_`): **156**
 
 ![Tests by area](charts/tests_by_upgrade_area.svg)
 
@@ -58,21 +58,6 @@ Report automatico su regole, copertura, test delle upgrade e impatto lean.
 | `installer_exe_or_build` | yes |
 | `setup_guide` | yes |
 | `visible_interval_hook` | yes |
-
-## Ultima pytest (opzionale)
-
-- exit: `0` · passed: **142** · failed: **0**
-
-```
-    class AlertOut(BaseModel):
-
-services\api\schemas.py:206
-  C:\Users\feded\Projects\darkgreen-siem\services\api\schemas.py:206: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.13/migration/
-    class AuditOut(BaseModel):
-
--- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
-142 passed, 4 warnings in 1.05s
-```
 
 ## Come rigenerare
 

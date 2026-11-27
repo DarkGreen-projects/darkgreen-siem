@@ -40,9 +40,13 @@ export default function Dashboard({
   const [statusFilter, setStatusFilter] = useState<AlertStatus | "all">("all");
   const [mitreFilter, setMitreFilter] = useState("");
   const [slaFilter, setSlaFilter] = useState("");
+  const [hideNoise, setHideNoise] = useState(false);
   const [filteredAlerts, setFilteredAlerts] = useState<Alert[] | null>(null);
+  const [pageOffset, setPageOffset] = useState(0);
+  const [hasMore, setHasMore] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [focusedAlertId, setFocusedAlertId] = useState<number | null>(null);
+  const PAGE_SIZE = 50;
 
   useEffect(() => {
     let alive = true;
@@ -75,10 +79,15 @@ export default function Dashboard({
   );
 
   useEffect(() => {
+    setPageOffset(0);
+  }, [statusFilter, mitreFilter, slaFilter, hideNoise]);
+
+  useEffect(() => {
     const mitre = mitreFilter.trim();
     const sla = slaFilter.trim();
-    if (statusFilter === "all" && !mitre && !sla) {
+    if (statusFilter === "all" && !mitre && !sla && !hideNoise) {
       setFilteredAlerts(null);
+      setHasMore(false);
       return;
     }
     let alive = true;
@@ -87,17 +96,24 @@ export default function Dashboard({
         status: statusFilter === "all" ? undefined : statusFilter,
         mitre: mitre || undefined,
         sla: sla || undefined,
+        hide_noise: hideNoise || undefined,
+        limit: PAGE_SIZE,
+        offset: pageOffset,
       })
       .then((list) => {
-        if (alive) setFilteredAlerts(list);
+        if (!alive) return;
+        setFilteredAlerts((prev) =>
+          pageOffset === 0 ? list : [...(prev || []), ...list]
+        );
+        setHasMore(list.length >= PAGE_SIZE);
       })
       .catch(() => {
-        if (alive) setFilteredAlerts([]);
+        if (alive && pageOffset === 0) setFilteredAlerts([]);
       });
     return () => {
       alive = false;
     };
-  }, [statusFilter, mitreFilter, slaFilter]);
+  }, [statusFilter, mitreFilter, slaFilter, hideNoise, pageOffset]);
 
   useVisibleInterval(
     () => {
@@ -137,7 +153,7 @@ export default function Dashboard({
   const byStatus = stats.by_alert_status || {};
   const openCount = byStatus.open ?? stats.open_alerts;
   const alertsShown =
-    statusFilter === "all" && !mitreFilter.trim() && !slaFilter.trim()
+    statusFilter === "all" && !mitreFilter.trim() && !slaFilter.trim() && !hideNoise
       ? stats.recent_alerts
       : filteredAlerts ?? [];
 
@@ -160,7 +176,13 @@ export default function Dashboard({
   const exportCsv = async () => {
     setExporting(true);
     try {
-      await api.exportAlertsCsv(statusFilter === "all" ? undefined : statusFilter);
+      const mitre = mitreFilter.trim();
+      const sla = slaFilter.trim();
+      await api.exportAlertsCsv({
+        status: statusFilter === "all" ? undefined : statusFilter,
+        mitre: mitre || undefined,
+        sla: sla || undefined,
+      });
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -233,6 +255,15 @@ export default function Dashboard({
               <option value="ok">ok</option>
               <option value="met">met</option>
             </select>
+          </label>
+          <label className="status-filter-field setup-toggle" style={{ marginLeft: "0.5rem" }}>
+            <input
+              type="checkbox"
+              checked={hideNoise}
+              onChange={(e) => setHideNoise(e.target.checked)}
+              aria-label="Nascondi likely_noise"
+            />
+            Nascondi likely_noise
           </label>
         </div>
       </div>
@@ -370,7 +401,7 @@ export default function Dashboard({
         {alertsShown.length === 0 ? (
           <p className="muted">Nessun alert in questo filtro.</p>
         ) : (
-          <div className="list-block">
+          <div className="list-block" style={{ maxHeight: "70vh", overflowY: "auto" }}>
             {alertsShown.map((a) => (
               <div
                 key={a.id}
@@ -386,6 +417,16 @@ export default function Dashboard({
               </div>
             ))}
           </div>
+        )}
+        {hasMore && filteredAlerts && (
+          <button
+            type="button"
+            className="ghost"
+            style={{ marginTop: "0.75rem" }}
+            onClick={() => setPageOffset((o) => o + PAGE_SIZE)}
+          >
+            Carica altri
+          </button>
         )}
       </div>
     </>

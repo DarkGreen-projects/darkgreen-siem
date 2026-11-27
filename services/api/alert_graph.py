@@ -90,6 +90,22 @@ def _history_count(db: Session, tenant_id: str) -> int:
     return int(n_mem) + int(n_open)
 
 
+def _pending_link(
+    db: Session, *, src_id: int, dst_id: int, relation: str
+) -> AlertLink | None:
+    """Find an unsaved AlertLink already pending in this session."""
+    for obj in list(db.new):
+        if not isinstance(obj, AlertLink):
+            continue
+        if (
+            int(obj.src_alert_id) == src_id
+            and int(obj.dst_alert_id) == dst_id
+            and str(obj.relation) == relation
+        ):
+            return obj
+    return None
+
+
 def _upsert_link(
     db: Session,
     *,
@@ -102,6 +118,13 @@ def _upsert_link(
 ) -> None:
     if src_id == dst_id:
         return
+    capped = max(0, min(100, score))
+    pending = _pending_link(db, src_id=src_id, dst_id=dst_id, relation=relation)
+    if pending is not None:
+        if capped > int(pending.score or 0):
+            pending.score = capped
+            pending.shared_keys = shared_keys
+        return
     existing = db.scalar(
         select(AlertLink).where(
             and_(
@@ -112,8 +135,8 @@ def _upsert_link(
         )
     )
     if existing:
-        if score > int(existing.score or 0):
-            existing.score = score
+        if capped > int(existing.score or 0):
+            existing.score = capped
             existing.shared_keys = shared_keys
         return
     db.add(
@@ -122,7 +145,7 @@ def _upsert_link(
             dst_alert_id=dst_id,
             tenant_id=tenant_id,
             relation=relation,
-            score=max(0, min(100, score)),
+            score=capped,
             shared_keys=shared_keys,
         )
     )
@@ -141,8 +164,16 @@ def link_alert(db: Session, alert: Alert) -> int:
     if not getattr(lab, "graph_enabled", True):
         return 0
 
+    # Soft-skip heavy linking for clear noise with low score (still allow signal).
+    hint = (getattr(alert, "noise_hint", None) or "").lower()
+    risk = int(getattr(alert, "risk_score", None) or 0)
+    if hint == "likely_noise" and risk < 40:
+        return 0
+
     window = int(getattr(lab, "graph_window_minutes", 120) or 120)
     min_history = int(getattr(lab, "graph_min_history", 15) or 15)
+    peer_limit = int(getattr(lab, "graph_peer_limit", 40) or 40)
+    peer_limit = max(10, min(80, peer_limit))
     tenant = getattr(alert, "tenant_id", None) or "lab"
     mature = _history_count(db, tenant) >= min_history
 
@@ -163,7 +194,7 @@ def link_alert(db: Session, alert: Alert) -> int:
                 )
             )
             .order_by(Alert.created_at.desc())
-            .limit(80)
+            .limit(peer_limit)
         ).all()
     )
 

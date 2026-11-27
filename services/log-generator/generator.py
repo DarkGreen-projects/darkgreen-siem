@@ -15,6 +15,7 @@ from datetime import datetime, timezone
 API_URL = os.getenv("API_URL", "http://localhost:8000").rstrip("/")
 SYSLOG_HOST = os.getenv("SYSLOG_HOST", "127.0.0.1")
 SYSLOG_PORT = int(os.getenv("SYSLOG_PORT", "5140"))
+SYSLOG_SHARED_SECRET = os.getenv("SYSLOG_SHARED_SECRET", "").strip()
 INTERVAL = float(os.getenv("INTERVAL_SEC", "2"))
 SIEM_API_TOKEN = os.getenv("SIEM_API_TOKEN", "").strip()
 
@@ -54,7 +55,10 @@ def post_ingest(payload, source_type: str) -> None:
 def send_syslog(line: str) -> None:
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     try:
-        msg = f"<134>{line}".encode("utf-8")
+        body = line
+        if SYSLOG_SHARED_SECRET:
+            body = f"{SYSLOG_SHARED_SECRET} {line}"
+        msg = f"<134>{body}".encode("utf-8")
         sock.sendto(msg, (SYSLOG_HOST, SYSLOG_PORT))
     finally:
         sock.close()

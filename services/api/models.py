@@ -7,6 +7,7 @@ from sqlalchemy import (
     BigInteger,
     Boolean,
     DateTime,
+    Index,
     Integer,
     String,
     Text,
@@ -87,6 +88,12 @@ class Event(Base):
 
 class Alert(Base):
     __tablename__ = "alerts"
+    __table_args__ = (
+        Index("ix_alerts_tenant_status_created", "tenant_id", "status", "created_at"),
+        Index("ix_alerts_tenant_rule_status", "tenant_id", "rule_id", "status"),
+        Index("ix_alerts_tenant_noise_hint", "tenant_id", "noise_hint"),
+        Index("ix_alerts_tenant_fingerprint", "tenant_id", "fingerprint_hash"),
+    )
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     tenant_id: Mapped[str] = mapped_column(String(64), default="lab", index=True)
@@ -108,6 +115,7 @@ class Alert(Base):
     closed_by: Mapped[str | None] = mapped_column(String(128), nullable=True)
     risk_score: Mapped[int | None] = mapped_column(Integer, nullable=True)
     noise_hint: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    fingerprint_hash: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
 
 
 class AlertComment(Base):
@@ -202,6 +210,53 @@ class AlertLink(Base):
     relation: Mapped[str] = mapped_column(String(32), index=True)
     score: Mapped[int] = mapped_column(Integer, default=0)
     shared_keys: Mapped[list[Any]] = mapped_column(JSONB, default=list)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), index=True
+    )
+
+
+class RateBucket(Base):
+    """Fixed-window rate counter shared across API workers via Postgres."""
+
+    __tablename__ = "rate_buckets"
+
+    bucket_key: Mapped[str] = mapped_column(String(256), primary_key=True)
+    tenant_id: Mapped[str] = mapped_column(String(64), default="lab", index=True)
+    window_id: Mapped[int] = mapped_column(BigInteger, default=0)
+    count: Mapped[int] = mapped_column(Integer, default=0)
+
+
+class CopilotAudit(Base):
+    """Suggest-only Copilot provenance (never auto-disposes)."""
+
+    __tablename__ = "copilot_audits"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    tenant_id: Mapped[str] = mapped_column(String(64), default="lab", index=True)
+    alert_id: Mapped[int] = mapped_column(BigInteger, index=True)
+    actor: Mapped[str] = mapped_column(String(128), default="analyst")
+    action: Mapped[str] = mapped_column(String(32), default="copilot_suggest", index=True)
+    source: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    suggested_disposition: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    llm_skipped: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    priority: Mapped[str | None] = mapped_column(String(8), nullable=True)
+    noise_action: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), index=True
+    )
+
+
+class CopilotFeedback(Base):
+    """Analyst thumbs on Copilot suggestions (RAG boost)."""
+
+    __tablename__ = "copilot_feedback"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    tenant_id: Mapped[str] = mapped_column(String(64), default="lab", index=True)
+    alert_id: Mapped[int] = mapped_column(BigInteger, index=True)
+    actor: Mapped[str] = mapped_column(String(128), default="analyst")
+    useful: Mapped[bool] = mapped_column(Boolean, default=True)
+    rule_id: Mapped[str | None] = mapped_column(String(128), nullable=True, index=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), index=True
     )

@@ -1,0 +1,1676 @@
+{
+  "generated_at": "2026-11-27T09:25:42.258887Z",
+  "profile": "mix",
+  "events_requested": 1000,
+  "inserted": 1000,
+  "ingest_ms": 1360.8,
+  "rules_run_ms": 278.9,
+  "rules_error": null,
+  "dispositions_seeded": 10,
+  "before": {
+    "stats": {
+      "range": "1h",
+      "total_events": 15572,
+      "total_alerts": 337,
+      "open_alerts": 205,
+      "eps_approx": 0.0,
+      "by_source_type": {
+        "windows": 4955,
+        "siem_export": 1577,
+        "firewall": 4979,
+        "cloud_auth": 4061
+      },
+      "by_severity": {
+        "medium": 4843,
+        "info": 740,
+        "critical": 800,
+        "high": 9187,
+        "low": 2
+      },
+      "by_channel": {
+        "seed": 28,
+        "http": 15544
+      },
+      "by_alert_status": {
+        "closed": 119,
+        "open": 205,
+        "in_progress": 6,
+        "acked": 7
+      },
+      "timeline": [
+        {
+          "bucket": "2026-11-27T08:25:37.936261+00:00",
+          "count": 0,
+          "by_source": {}
+        },
+        {
+          "bucket": "2026-11-27T08:30:37.936261+00:00",
+          "count": 0,
+          "by_source": {}
+        },
+        {
+          "bucket": "2026-11-27T08:35:37.936261+00:00",
+          "count": 0,
+          "by_source": {}
+        },
+        {
+          "bucket": "2026-11-27T08:40:37.936261+00:00",
+          "count": 0,
+          "by_source": {}
+        },
+        {
+          "bucket": "2026-11-27T08:45:37.936261+00:00",
+          "count": 0,
+          "by_source": {}
+        },
+        {
+          "bucket": "2026-11-27T08:50:37.936261+00:00",
+          "count": 0,
+          "by_source": {}
+        },
+        {
+          "bucket": "2026-11-27T08:55:37.936261+00:00",
+          "count": 10000,
+          "by_source": {
+            "windows": 3138,
+            "siem_export": 1032,
+            "cloud_auth": 2640,
+            "firewall": 3190
+          }
+        },
+        {
+          "bucket": "2026-11-27T09:00:37.936261+00:00",
+          "count": 0,
+          "by_source": {}
+        },
+        {
+          "bucket": "2026-11-27T09:05:37.936261+00:00",
+          "count": 5000,
+          "by_source": {
+            "cloud_auth": 1376,
+            "firewall": 1639,
+            "siem_export": 476,
+            "windows": 1509
+          }
+        },
+        {
+          "bucket": "2026-11-27T09:10:37.936261+00:00",
+          "count": 0,
+          "by_source": {}
+        },
+        {
+          "bucket": "2026-11-27T09:15:37.936261+00:00",
+          "count": 0,
+          "by_source": {}
+        },
+        {
+          "bucket": "2026-11-27T09:20:37.936261+00:00",
+          "count": 0,
+          "by_source": {}
+        }
+      ],
+      "source_health": [
+        {
+          "source_type": "firewall",
+          "last_event_at": "2026-11-27T09:08:16Z",
+          "silent_for_seconds": 1041,
+          "status": "stale"
+        },
+        {
+          "source_type": "windows",
+          "last_event_at": "2026-11-27T09:08:16.476151Z",
+          "silent_for_seconds": 1041,
+          "status": "stale"
+        },
+        {
+          "source_type": "cloud_auth",
+          "last_event_at": "2026-11-27T09:08:16.476173Z",
+          "silent_for_seconds": 1041,
+          "status": "stale"
+        },
+        {
+          "source_type": "siem_export",
+          "last_event_at": "2026-11-27T09:08:16.476075Z",
+          "silent_for_seconds": 1041,
+          "status": "stale"
+        }
+      ],
+      "recent_alerts": [
+        {
+          "id": 400,
+          "rule_id": "spray-then-success",
+          "rule_name": "Spray then successful logon",
+          "severity": "critical",
+          "title": "Password spray seguito da login_success",
+          "description": "Correlazione: almeno 5 login_failed Windows dallo stesso src_ip e poi almeno un login_success dallo stesso IP entro 30 minuti.",
+          "status": "open",
+          "mitre": null,
+          "evidence": {
+            "keys": [
+              "203.0.113.45"
+            ],
+            "count": 2,
+            "steps": [
+              {
+                "count": 557,
+                "index": 0,
+                "match": {
+                  "action": "login_failed",
+                  "source_type": "windows"
+                },
+                "min_count": 5
+              },
+              {
+                "count": 97,
+                "index": 1,
+                "match": {
+                  "action": "login_success",
+                  "source_type": "windows"
+                },
+                "min_count": 1
+              }
+            ],
+            "sample": {
+              "host": "Microsoft 365",
+              "user": "svc.backup@contoso.example",
+              "action": "login_failed",
+              "dst_ip": null,
+              "src_ip": "203.0.113.45",
+              "message": "Stress cloud auth failure"
+            },
+            "triage": {
+              "priors": {
+                "benign": 0,
+                "true_positive": 0,
+                "false_positive": 2
+              },
+              "noise_hint": "likely_noise",
+              "risk_score": 35
+            },
+            "join_on": "src_ip",
+            "join_key": "203.0.113.45",
+            "event_ids": [],
+            "last_seen": "2026-11-27T09:25:25.927085+00:00",
+            "entity_key": "src_ip:203.0.113.45",
+            "entity_keys": [
+              "join:203.0.113.45",
+              "src_ip:203.0.113.45",
+              "host:Microsoft 365",
+              "user:svc.backup@contoso.example"
+            ],
+            "occurrences": 36,
+            "threat_brief": "Pattern tipico di password spray riuscito: molti fallimenti da un IP esterno seguiti da un logon valido. Isolare l account riuscito, reset password, e verificare sessioni/RDP/VPN dallo stesso origine.",
+            "window_minutes": 30,
+            "fingerprint_hash": "b9cb7f86db4de614d433e6d0da4cc955"
+          },
+          "threat_brief": "Pattern tipico di password spray riuscito: molti fallimenti da un IP esterno seguiti da un logon valido. Isolare l account riuscito, reset password, e verificare sessioni/RDP/VPN dallo stesso origine.",
+          "comments": [],
+          "audit": [],
+          "created_at": "2026-11-27T09:08:26.861009Z",
+          "acked_at": null,
+          "closed_at": null,
+          "disposition": null,
+          "closure_note": null,
+          "closed_by": null,
+          "risk_score": 35,
+          "noise_hint": "likely_noise",
+          "cluster_size": null,
+          "campaign_id": null,
+          "fingerprint_hash": "b9cb7f86db4de614d433e6d0da4cc955",
+          "sla_ack_status": "breached",
+          "sla_ack_target_minutes": 15,
+          "sla_ack_due_at": "2026-11-27T09:23:26.861009Z",
+          "sla_ack_elapsed_minutes": 17,
+          "sla_ack_remaining_minutes": -3,
+          "sla_close_status": "ok",
+          "sla_close_target_minutes": 120,
+          "sla_close_due_at": "2026-11-27T11:08:26.861009Z",
+          "sla_close_elapsed_minutes": 17,
+          "sla_close_remaining_minutes": 102
+        },
+        {
+          "id": 398,
+          "rule_id": "malware-siem-export",
+          "rule_name": "Endpoint malware from SIEM export",
+          "severity": "critical",
+          "title": "Malware activity from EDR export",
+          "description": "Match high-severity malware-related SIEM export events.",
+          "status": "open",
+          "mitre": "T1204.002",
+          "evidence": {
+            "count": 26,
+            "mitre": "T1204.002",
+            "sample": {
+              "id": 37613,
+              "host": "win-dc01.lab.local",
+              "user": "j.doe",
+              "action": "malware_detected",
+              "dst_ip": null,
+              "src_ip": "10.0.50.3",
+              "message": "Stress Cynet malware with hash"
+            },
+            "triage": {
+              "priors": {
+                "benign": 0,
+                "true_positive": 2,
+                "false_positive": 0
+              },
+              "noise_hint": "likely_signal",
+              "risk_score": 100
+            },
+            "event_ids": [
+              37613,
+              37605,
+              37604,
+              37590,
+              37548,
+              37529,
+              37475,
+              37441,
+              37391,
+              37370
+            ],
+            "last_seen": "2026-11-27T09:25:25.817334+00:00",
+            "entity_key": "src_ip:10.0.50.3",
+            "entity_keys": [
+              "src_ip:10.0.50.3",
+              "host:win-dc01.lab.local",
+              "user:j.doe"
+            ],
+            "occurrences": 36,
+            "threat_brief": "An EDR/SIEM malware detection usually means a suspicious binary or behavior on an endpoint. Isolate the host if policy allows, collect the hash/path, and hunt for lateral movement from the same user or device in nearby events.",
+            "fingerprint_hash": "150df2aecc885ac05eb5128ffab547e8"
+          },
+          "threat_brief": "An EDR/SIEM malware detection usually means a suspicious binary or behavior on an endpoint. Isolate the host if policy allows, collect the hash/path, and hunt for lateral movement from the same user or device in nearby events.",
+          "comments": [],
+          "audit": [],
+          "created_at": "2026-11-27T09:08:26.861009Z",
+          "acked_at": null,
+          "closed_at": null,
+          "disposition": null,
+          "closure_note": null,
+          "closed_by": null,
+          "risk_score": 100,
+          "noise_hint": "likely_signal",
+          "cluster_size": null,
+          "campaign_id": null,
+          "fingerprint_hash": "150df2aecc885ac05eb5128ffab547e8",
+          "sla_ack_status": "breached",
+          "sla_ack_target_minutes": 15,
+          "sla_ack_due_at": "2026-11-27T09:23:26.861009Z",
+          "sla_ack_elapsed_minutes": 17,
+          "sla_ack_remaining_minutes": -3,
+          "sla_close_status": "ok",
+          "sla_close_target_minutes": 120,
+          "sla_close_due_at": "2026-11-27T11:08:26.861009Z",
+          "sla_close_elapsed_minutes": 17,
+          "sla_close_remaining_minutes": 102
+        },
+        {
+          "id": 397,
+          "rule_id": "firewall-deny-burst",
+          "rule_name": "Firewall deny from external IP",
+          "severity": "medium",
+          "title": "External firewall deny observed",
+          "description": "Match deny actions on firewall events (demo match rule).",
+          "status": "open",
+          "mitre": null,
+          "evidence": {
+            "count": 139,
+            "sample": {
+              "id": 37637,
+              "host": "fw-edge-01",
+              "user": null,
+              "action": "deny",
+              "dst_ip": "10.0.20.8",
+              "src_ip": "203.0.113.45",
+              "message": "stress deny"
+            },
+            "triage": {
+              "priors": {
+                "benign": 0,
+                "true_positive": 0,
+                "false_positive": 1
+              },
+              "noise_hint": "unclear",
+              "risk_score": 41
+            },
+            "event_ids": [
+              37637,
+              37634,
+              37631,
+              37630,
+              37621,
+              37618,
+              37617,
+              37612,
+              37611,
+              37610
+            ],
+            "last_seen": "2026-11-27T09:25:25.795987+00:00",
+            "entity_key": "src_ip:203.0.113.45",
+            "entity_keys": [
+              "src_ip:203.0.113.45",
+              "dst_ip:10.0.20.8",
+              "host:fw-edge-01"
+            ],
+            "occurrences": 36,
+            "threat_brief": "A firewall deny from an external address can be reconnaissance, an exploit attempt, or misconfigured outbound traffic. Review destination port/service, volume of similar denies, and whether the same src_ip appears in auth failures.",
+            "fingerprint_hash": "e644b61c2cae1f9f3dc443ec5633f849"
+          },
+          "threat_brief": "A firewall deny from an external address can be reconnaissance, an exploit attempt, or misconfigured outbound traffic. Review destination port/service, volume of similar denies, and whether the same src_ip appears in auth failures.",
+          "comments": [],
+          "audit": [],
+          "created_at": "2026-11-27T09:08:26.861009Z",
+          "acked_at": null,
+          "closed_at": null,
+          "disposition": null,
+          "closure_note": null,
+          "closed_by": null,
+          "risk_score": 41,
+          "noise_hint": "unclear",
+          "cluster_size": null,
+          "campaign_id": null,
+          "fingerprint_hash": "e644b61c2cae1f9f3dc443ec5633f849",
+          "sla_ack_status": "ok",
+          "sla_ack_target_minutes": 240,
+          "sla_ack_due_at": "2026-11-27T13:08:26.861009Z",
+          "sla_ack_elapsed_minutes": 17,
+          "sla_ack_remaining_minutes": 222,
+          "sla_close_status": "ok",
+          "sla_close_target_minutes": 1440,
+          "sla_close_due_at": "2026-11-28T09:08:26.861009Z",
+          "sla_close_elapsed_minutes": 17,
+          "sla_close_remaining_minutes": 1422
+        },
+        {
+          "id": 396,
+          "rule_id": "firewall-deny-hot-dst",
+          "rule_name": "Firewall deny verso IP hot",
+          "severity": "high",
+          "title": "Deny firewall verso destinazione hot (demo)",
+          "description": "Match deny firewall verso un set di IP pubblici demo considerati \"hot\" (RFC5737). Utile per hunting di scan/exploit verso target monitorati.",
+          "status": "open",
+          "mitre": null,
+          "evidence": {
+            "count": 28,
+            "sample": {
+              "id": 37634,
+              "host": "fw-edge-01",
+              "user": null,
+              "action": "deny",
+              "dst_ip": "192.0.2.200",
+              "src_ip": "198.51.100.22",
+              "message": "stress deny"
+            },
+            "triage": {
+              "priors": {
+                "benign": 0,
+                "true_positive": 0,
+                "false_positive": 2
+              },
+              "noise_hint": "likely_noise",
+              "risk_score": 35
+            },
+            "event_ids": [
+              37634,
+              37254,
+              37264,
+              37266,
+              37272,
+              37307,
+              37343,
+              37359,
+              37360,
+              37368
+            ],
+            "last_seen": "2026-11-27T09:25:25.788002+00:00",
+            "entity_key": "src_ip:198.51.100.22",
+            "entity_keys": [
+              "src_ip:198.51.100.22",
+              "dst_ip:192.0.2.200",
+              "host:fw-edge-01"
+            ],
+            "occurrences": 36,
+            "threat_brief": "Un deny verso un IP in watchlist puo indicare tentativi outbound malevoli (C2) o misconfig. Verifica host interno sorgente, porta/servizio, e volume di deny simili. Arricchisci l IP su VirusTotal dalla card alert.",
+            "fingerprint_hash": "d100b898bd813742df856503898efbcd"
+          },
+          "threat_brief": "Un deny verso un IP in watchlist puo indicare tentativi outbound malevoli (C2) o misconfig. Verifica host interno sorgente, porta/servizio, e volume di deny simili. Arricchisci l IP su VirusTotal dalla card alert.",
+          "comments": [],
+          "audit": [],
+          "created_at": "2026-11-27T09:08:26.861009Z",
+          "acked_at": null,
+          "closed_at": null,
+          "disposition": null,
+          "closure_note": null,
+          "closed_by": null,
+          "risk_score": 35,
+          "noise_hint": "likely_noise",
+          "cluster_size": null,
+          "campaign_id": null,
+          "fingerprint_hash": "d100b898bd813742df856503898efbcd",
+          "sla_ack_status": "ok",
+          "sla_ack_target_minutes": 30,
+          "sla_ack_due_at": "2026-11-27T09:38:26.861009Z",
+          "sla_ack_elapsed_minutes": 17,
+          "sla_ack_remaining_minutes": 12,
+          "sla_close_status": "ok",
+          "sla_close_target_minutes": 480,
+          "sla_close_due_at": "2026-11-27T17:08:26.861009Z",
+          "sla_close_elapsed_minutes": 17,
+          "sla_close_remaining_minutes": 462
+        },
+        {
+          "id": 395,
+          "rule_id": "cynet-suspicious-process",
+          "rule_name": "Cynet suspicious process",
+          "severity": "high",
+          "title": "Cynet suspicious / LOLBin process",
+          "description": "Cynet export with suspicious process activity (e.g. encoded PowerShell).",
+          "status": "open",
+          "mitre": "T1059.001",
+          "evidence": {
+            "count": 16,
+            "mitre": "T1059.001",
+            "sample": {
+              "id": 37622,
+              "host": "win-dc01.lab.local",
+              "user": "a.admin",
+              "action": "suspicious_process",
+              "dst_ip": null,
+              "src_ip": "10.0.20.8",
+              "message": "Stress Cynet suspicious process"
+            },
+            "triage": {
+              "priors": {
+                "benign": 0,
+                "true_positive": 1,
+                "false_positive": 0
+              },
+              "noise_hint": "likely_signal",
+              "risk_score": 100
+            },
+            "event_ids": [
+              37622,
+              37572,
+              37448,
+              37418,
+              37366,
+              37341,
+              37268,
+              37249,
+              37234,
+              37230
+            ],
+            "last_seen": "2026-11-27T09:25:25.767795+00:00",
+            "entity_key": "src_ip:10.0.20.8",
+            "entity_keys": [
+              "src_ip:10.0.20.8",
+              "host:win-dc01.lab.local",
+              "user:a.admin"
+            ],
+            "occurrences": 36,
+            "threat_brief": "Living-off-the-land binaries often mean post-exploitation. Review command line, parent process, and user context; check for lateral movement and persistence.",
+            "fingerprint_hash": "9d451fda8253c25c89943b310a3e0c8a"
+          },
+          "threat_brief": "Living-off-the-land binaries often mean post-exploitation. Review command line, parent process, and user context; check for lateral movement and persistence.",
+          "comments": [],
+          "audit": [],
+          "created_at": "2026-11-27T09:08:26.861009Z",
+          "acked_at": null,
+          "closed_at": null,
+          "disposition": null,
+          "closure_note": null,
+          "closed_by": null,
+          "risk_score": 100,
+          "noise_hint": "likely_signal",
+          "cluster_size": null,
+          "campaign_id": null,
+          "fingerprint_hash": "9d451fda8253c25c89943b310a3e0c8a",
+          "sla_ack_status": "ok",
+          "sla_ack_target_minutes": 30,
+          "sla_ack_due_at": "2026-11-27T09:38:26.861009Z",
+          "sla_ack_elapsed_minutes": 17,
+          "sla_ack_remaining_minutes": 12,
+          "sla_close_status": "ok",
+          "sla_close_target_minutes": 480,
+          "sla_close_due_at": "2026-11-27T17:08:26.861009Z",
+          "sla_close_elapsed_minutes": 17,
+          "sla_close_remaining_minutes": 462
+        },
+        {
+          "id": 394,
+          "rule_id": "cynet-malware-hash",
+          "rule_name": "Cynet malware with file hash",
+          "severity": "critical",
+          "title": "Cynet malware detection (hash present)",
+          "description": "High-severity Cynet malware export that includes a file hash for IOC hunting.",
+          "status": "open",
+          "mitre": "T1204.002,T1105",
+          "evidence": {
+            "count": 26,
+            "mitre": "T1204.002,T1105",
+            "sample": {
+              "id": 37613,
+              "host": "win-dc01.lab.local",
+              "user": "j.doe",
+              "action": "malware_detected",
+              "dst_ip": null,
+              "src_ip": "10.0.50.3",
+              "message": "Stress Cynet malware with hash"
+            },
+            "triage": {
+              "priors": {
+                "benign": 0,
+                "true_positive": 2,
+                "false_positive": 0
+              },
+              "noise_hint": "likely_signal",
+              "risk_score": 100
+            },
+            "event_ids": [
+              37613,
+              37605,
+              37604,
+              37590,
+              37548,
+              37529,
+              37475,
+              37441,
+              37391,
+              37370
+            ],
+            "last_seen": "2026-11-27T09:25:25.744368+00:00",
+            "entity_key": "src_ip:10.0.50.3",
+            "entity_keys": [
+              "src_ip:10.0.50.3",
+              "host:win-dc01.lab.local",
+              "user:j.doe"
+            ],
+            "occurrences": 36,
+            "threat_brief": "Hash-backed malware detections are high-signal. Pull the SHA256 from labels, check TI reputation, and scope other hosts with the same hash or parent process.",
+            "fingerprint_hash": "c32395dab371ba8921d482e8582e5be0"
+          },
+          "threat_brief": "Hash-backed malware detections are high-signal. Pull the SHA256 from labels, check TI reputation, and scope other hosts with the same hash or parent process.",
+          "comments": [],
+          "audit": [],
+          "created_at": "2026-11-27T09:08:26.861009Z",
+          "acked_at": null,
+          "closed_at": null,
+          "disposition": null,
+          "closure_note": null,
+          "closed_by": null,
+          "risk_score": 100,
+          "noise_hint": "likely_signal",
+          "cluster_size": null,
+          "campaign_id": null,
+          "fingerprint_hash": "c32395dab371ba8921d482e8582e5be0",
+          "sla_ack_status": "breached",
+          "sla_ack_target_minutes": 15,
+          "sla_ack_due_at": "2026-11-27T09:23:26.861009Z",
+          "sla_ack_elapsed_minutes": 17,
+          "sla_ack_remaining_minutes": -3,
+          "sla_close_status": "ok",
+          "sla_close_target_minutes": 120,
+          "sla_close_due_at": "2026-11-27T11:08:26.861009Z",
+          "sla_close_elapsed_minutes": 17,
+          "sla_close_remaining_minutes": 102
+        },
+        {
+          "id": 399,
+          "rule_id": "password-spray-windows",
+          "rule_name": "Password spray Windows",
+          "severity": "high",
+          "title": "Burst login_failed da stesso src_ip (spray)",
+          "description": "Conta login_failed Windows raggruppati per src_ip. Un IP con molti fallimenti su utenti diversi tipicamente indica password spray.",
+          "status": "open",
+          "mitre": null,
+          "evidence": {
+            "count": 1257,
+            "groups": [
+              {
+                "key": "203.0.113.45",
+                "count": 3931
+              }
+            ],
+            "sample": {
+              "key": "203.0.113.45",
+              "src_ip": "203.0.113.45"
+            },
+            "triage": {
+              "priors": {
+                "benign": 0,
+                "true_positive": 0,
+                "false_positive": 3
+              },
+              "noise_hint": "likely_noise",
+              "risk_score": 33
+            },
+            "group_by": "src_ip",
+            "event_ids": [],
+            "last_seen": "2026-11-27T09:23:03.313567+00:00",
+            "threshold": 8,
+            "entity_key": "src_ip:203.0.113.45",
+            "entity_keys": [
+              "group:src_ip=203.0.113.45",
+              "src_ip:203.0.113.45"
+            ],
+            "occurrences": 30,
+            "threat_brief": "Password spray: stesso origine prova poche password su molti account per evitare lockout. Verifica utenti colpiti, geo/IP reputation, e se compaiono logon riusciti subito dopo. Controlla anche EventID 4625 e LogonType.",
+            "window_minutes": 15,
+            "fingerprint_hash": "b760685a255636b5a67bb831606dbad8"
+          },
+          "threat_brief": "Password spray: stesso origine prova poche password su molti account per evitare lockout. Verifica utenti colpiti, geo/IP reputation, e se compaiono logon riusciti subito dopo. Controlla anche EventID 4625 e LogonType.",
+          "comments": [],
+          "audit": [],
+          "created_at": "2026-11-27T09:08:26.861009Z",
+          "acked_at": null,
+          "closed_at": null,
+          "disposition": null,
+          "closure_note": null,
+          "closed_by": null,
+          "risk_score": 33,
+          "noise_hint": "likely_noise",
+          "cluster_size": null,
+          "campaign_id": null,
+          "fingerprint_hash": "b760685a255636b5a67bb831606dbad8",
+          "sla_ack_status": "ok",
+          "sla_ack_target_minutes": 30,
+          "sla_ack_due_at": "2026-11-27T09:38:26.861009Z",
+          "sla_ack_elapsed_minutes": 17,
+          "sla_ack_remaining_minutes": 12,
+          "sla_close_status": "ok",
+          "sla_close_target_minutes": 480,
+          "sla_close_due_at": "2026-11-27T17:08:26.861009Z",
+          "sla_close_elapsed_minutes": 17,
+          "sla_close_remaining_minutes": 462
+        },
+        {
+          "id": 392,
+          "rule_id": "brute-force-windows",
+          "rule_name": "Windows brute-force login",
+          "severity": "high",
+          "title": "Multiple failed Windows logons",
+          "description": "More than 5 failed logons for the same user within 10 minutes.",
+          "status": "open",
+          "mitre": null,
+          "evidence": {
+            "count": 276,
+            "groups": [
+              {
+                "key": "a.admin",
+                "count": 532
+              },
+              {
+                "key": "ext.vendor",
+                "count": 535
+              },
+              {
+                "key": "j.doe",
+                "count": 492
+              },
+              {
+                "key": "r.rossi",
+                "count": 474
+              },
+              {
+                "key": "svc.backup",
+                "count": 535
+              }
+            ],
+            "sample": {
+              "key": "a.admin",
+              "src_ip": null
+            },
+            "triage": {
+              "priors": {
+                "benign": 0,
+                "true_positive": 0,
+                "false_positive": 2
+              },
+              "noise_hint": "likely_noise",
+              "risk_score": 35
+            },
+            "group_by": "user",
+            "event_ids": [],
+            "last_seen": "2026-11-27T09:18:01.232135+00:00",
+            "threshold": 5,
+            "entity_key": "user:a.admin",
+            "entity_keys": [
+              "group:user=a.admin",
+              "user:a.admin"
+            ],
+            "occurrences": 20,
+            "threat_brief": "Repeated failed logons often indicate password spraying or credential stuffing against a domain account. Check source IP reputation, account lockout status, and whether a later login_success followed from the same host.",
+            "window_minutes": 10,
+            "fingerprint_hash": "9cca0a6d1d4b2f164d6b193d39c88a4f"
+          },
+          "threat_brief": "Repeated failed logons often indicate password spraying or credential stuffing against a domain account. Check source IP reputation, account lockout status, and whether a later login_success followed from the same host.",
+          "comments": [],
+          "audit": [],
+          "created_at": "2026-11-27T09:08:26.861009Z",
+          "acked_at": null,
+          "closed_at": null,
+          "disposition": null,
+          "closure_note": null,
+          "closed_by": null,
+          "risk_score": 35,
+          "noise_hint": "likely_noise",
+          "cluster_size": null,
+          "campaign_id": null,
+          "fingerprint_hash": "9cca0a6d1d4b2f164d6b193d39c88a4f",
+          "sla_ack_status": "ok",
+          "sla_ack_target_minutes": 30,
+          "sla_ack_due_at": "2026-11-27T09:38:26.861009Z",
+          "sla_ack_elapsed_minutes": 17,
+          "sla_ack_remaining_minutes": 12,
+          "sla_close_status": "ok",
+          "sla_close_target_minutes": 480,
+          "sla_close_due_at": "2026-11-27T17:08:26.861009Z",
+          "sla_close_elapsed_minutes": 17,
+          "sla_close_remaining_minutes": 462
+        }
+      ]
+    },
+    "memory": {
+      "tenant_id": "lab",
+      "total": 72,
+      "by_disposition": {
+        "true_positive": 22,
+        "false_positive": 50
+      },
+      "last_closed_at": "2026-11-27T09:08:18.043369+00:00",
+      "rag_enabled": true,
+      "rag_top_k": 5,
+      "llm_called": 0,
+      "llm_skipped": 0
+    },
+    "noise_hint_sample": {
+      "likely_noise": 6,
+      "likely_signal": 53,
+      "unclear": 72,
+      "missing": 69
+    },
+    "latency_ms": {
+      "alerts": {
+        "n": 5,
+        "p50": 33.5,
+        "p95": 40.9,
+        "max": 40.9,
+        "mean": 35.8
+      },
+      "queue": {
+        "n": 5,
+        "p50": 43.6,
+        "p95": 53.0,
+        "max": 53.0,
+        "mean": 42.6
+      },
+      "stats": {
+        "n": 6,
+        "p50": 69.1,
+        "p95": 80.9,
+        "max": 80.9,
+        "mean": 69.3
+      },
+      "brief": {
+        "n": 5,
+        "p50": 17.9,
+        "p95": 26.2,
+        "max": 26.2,
+        "mean": 19.0
+      },
+      "copilot": {
+        "n": 5,
+        "p50": 17.6,
+        "p95": 28.4,
+        "max": 28.4,
+        "mean": 21.2
+      },
+      "memory_stats": {
+        "n": 1,
+        "p50": 7.0,
+        "p95": 7.0,
+        "max": 7.0,
+        "mean": 7.0
+      }
+    }
+  },
+  "after": {
+    "stats": {
+      "range": "1h",
+      "total_events": 16572,
+      "total_alerts": 340,
+      "open_alerts": 198,
+      "eps_approx": 16.67,
+      "by_source_type": {
+        "windows": 5241,
+        "siem_export": 1686,
+        "firewall": 5320,
+        "cloud_auth": 4325
+      },
+      "by_severity": {
+        "medium": 5184,
+        "info": 788,
+        "critical": 857,
+        "high": 9741,
+        "low": 2
+      },
+      "by_channel": {
+        "seed": 28,
+        "http": 16544
+      },
+      "by_alert_status": {
+        "open": 198,
+        "closed": 129,
+        "in_progress": 6,
+        "acked": 7
+      },
+      "timeline": [
+        {
+          "bucket": "2026-11-27T08:25:41.150200+00:00",
+          "count": 0,
+          "by_source": {}
+        },
+        {
+          "bucket": "2026-11-27T08:30:41.150200+00:00",
+          "count": 0,
+          "by_source": {}
+        },
+        {
+          "bucket": "2026-11-27T08:35:41.150200+00:00",
+          "count": 0,
+          "by_source": {}
+        },
+        {
+          "bucket": "2026-11-27T08:40:41.150200+00:00",
+          "count": 0,
+          "by_source": {}
+        },
+        {
+          "bucket": "2026-11-27T08:45:41.150200+00:00",
+          "count": 0,
+          "by_source": {}
+        },
+        {
+          "bucket": "2026-11-27T08:50:41.150200+00:00",
+          "count": 0,
+          "by_source": {}
+        },
+        {
+          "bucket": "2026-11-27T08:55:41.150200+00:00",
+          "count": 10000,
+          "by_source": {
+            "windows": 3138,
+            "siem_export": 1032,
+            "cloud_auth": 2640,
+            "firewall": 3190
+          }
+        },
+        {
+          "bucket": "2026-11-27T09:00:41.150200+00:00",
+          "count": 0,
+          "by_source": {}
+        },
+        {
+          "bucket": "2026-11-27T09:05:41.150200+00:00",
+          "count": 5000,
+          "by_source": {
+            "cloud_auth": 1376,
+            "firewall": 1639,
+            "siem_export": 476,
+            "windows": 1509
+          }
+        },
+        {
+          "bucket": "2026-11-27T09:10:41.150200+00:00",
+          "count": 0,
+          "by_source": {}
+        },
+        {
+          "bucket": "2026-11-27T09:15:41.150200+00:00",
+          "count": 0,
+          "by_source": {}
+        },
+        {
+          "bucket": "2026-11-27T09:20:41.150200+00:00",
+          "count": 1000,
+          "by_source": {
+            "windows": 286,
+            "siem_export": 109,
+            "cloud_auth": 264,
+            "firewall": 341
+          }
+        }
+      ],
+      "source_health": [
+        {
+          "source_type": "firewall",
+          "last_event_at": "2026-11-27T09:25:40Z",
+          "silent_for_seconds": 1,
+          "status": "ok"
+        },
+        {
+          "source_type": "windows",
+          "last_event_at": "2026-11-27T09:25:40.198737Z",
+          "silent_for_seconds": 0,
+          "status": "ok"
+        },
+        {
+          "source_type": "cloud_auth",
+          "last_event_at": "2026-11-27T09:25:40.198734Z",
+          "silent_for_seconds": 0,
+          "status": "ok"
+        },
+        {
+          "source_type": "siem_export",
+          "last_event_at": "2026-11-27T09:25:40.198750Z",
+          "silent_for_seconds": 0,
+          "status": "ok"
+        }
+      ],
+      "recent_alerts": [
+        {
+          "id": 404,
+          "rule_id": "ui-demo-deny",
+          "rule_name": "UI Demo Deny",
+          "severity": "medium",
+          "title": "UI Demo Deny",
+          "description": "Matched 63 event(s)",
+          "status": "closed",
+          "mitre": null,
+          "evidence": {
+            "count": 63,
+            "sample": {
+              "id": 38637,
+              "host": "fw-edge-01",
+              "user": null,
+              "action": "deny",
+              "dst_ip": "10.0.20.15",
+              "src_ip": "198.51.100.22",
+              "message": "stress deny"
+            },
+            "triage": {
+              "priors": {
+                "benign": 0,
+                "true_positive": 0,
+                "false_positive": 2
+              },
+              "noise_hint": "likely_noise",
+              "risk_score": 7
+            },
+            "playbook": null,
+            "event_ids": [
+              38637,
+              38636,
+              38634,
+              38633,
+              38626,
+              38625,
+              38623,
+              38619,
+              38438,
+              38440
+            ],
+            "entity_key": "src_ip:198.51.100.22",
+            "entity_keys": [
+              "src_ip:198.51.100.22",
+              "dst_ip:10.0.20.15",
+              "host:fw-edge-01"
+            ],
+            "occurrences": 1,
+            "threat_brief": "Demo rule created via API",
+            "fingerprint_hash": "326c45548663cc7b9943dda1421f4628"
+          },
+          "threat_brief": "Demo rule created via API",
+          "comments": [],
+          "audit": [],
+          "created_at": "2026-11-27T09:25:40.346619Z",
+          "acked_at": "2026-11-27T09:25:40.729949Z",
+          "closed_at": "2026-11-27T09:25:40.729949Z",
+          "disposition": "false_positive",
+          "closure_note": "Stress seed: known scanner or lab noise, safe to demote as FP.",
+          "closed_by": "analyst",
+          "risk_score": 7,
+          "noise_hint": "likely_noise",
+          "cluster_size": null,
+          "campaign_id": null,
+          "fingerprint_hash": "326c45548663cc7b9943dda1421f4628",
+          "sla_ack_status": "met",
+          "sla_ack_target_minutes": 240,
+          "sla_ack_due_at": "2026-11-27T13:25:40.346619Z",
+          "sla_ack_elapsed_minutes": 0,
+          "sla_ack_remaining_minutes": null,
+          "sla_close_status": "met",
+          "sla_close_target_minutes": 1440,
+          "sla_close_due_at": "2026-11-28T09:25:40.346619Z",
+          "sla_close_elapsed_minutes": 0,
+          "sla_close_remaining_minutes": null
+        },
+        {
+          "id": 403,
+          "rule_id": "firewall-deny-burst",
+          "rule_name": "Firewall deny from external IP",
+          "severity": "medium",
+          "title": "External firewall deny observed",
+          "description": "Match deny actions on firewall events (demo match rule).",
+          "status": "closed",
+          "mitre": null,
+          "evidence": {
+            "count": 63,
+            "sample": {
+              "id": 38637,
+              "host": "fw-edge-01",
+              "user": null,
+              "action": "deny",
+              "dst_ip": "10.0.20.15",
+              "src_ip": "198.51.100.22",
+              "message": "stress deny"
+            },
+            "triage": {
+              "priors": {
+                "benign": 0,
+                "true_positive": 0,
+                "false_positive": 2
+              },
+              "noise_hint": "likely_noise",
+              "risk_score": 7
+            },
+            "playbook": "1) Conta deny simili. 2) Controlla porta/servizio. 3) Cerca auth failures dallo stesso src_ip. 4) Se scanner noto chiudi FP con nota; altrimenti investiga.",
+            "event_ids": [
+              38637,
+              38636,
+              38634,
+              38633,
+              38626,
+              38625,
+              38623,
+              38619,
+              38438,
+              38440
+            ],
+            "entity_key": "src_ip:198.51.100.22",
+            "entity_keys": [
+              "src_ip:198.51.100.22",
+              "dst_ip:10.0.20.15",
+              "host:fw-edge-01"
+            ],
+            "occurrences": 1,
+            "threat_brief": "A firewall deny from an external address can be reconnaissance, an exploit attempt, or misconfigured outbound traffic. Review destination port/service, volume of similar denies, and whether the same src_ip appears in auth failures.",
+            "fingerprint_hash": "1f892110547285aaeba8bd9237c51a71"
+          },
+          "threat_brief": "A firewall deny from an external address can be reconnaissance, an exploit attempt, or misconfigured outbound traffic. Review destination port/service, volume of similar denies, and whether the same src_ip appears in auth failures.",
+          "comments": [],
+          "audit": [],
+          "created_at": "2026-11-27T09:25:40.346619Z",
+          "acked_at": "2026-11-27T09:25:40.689945Z",
+          "closed_at": "2026-11-27T09:25:40.689945Z",
+          "disposition": "false_positive",
+          "closure_note": "Stress seed: known scanner or lab noise, safe to demote as FP.",
+          "closed_by": "analyst",
+          "risk_score": 7,
+          "noise_hint": "likely_noise",
+          "cluster_size": null,
+          "campaign_id": null,
+          "fingerprint_hash": "1f892110547285aaeba8bd9237c51a71",
+          "sla_ack_status": "met",
+          "sla_ack_target_minutes": 240,
+          "sla_ack_due_at": "2026-11-27T13:25:40.346619Z",
+          "sla_ack_elapsed_minutes": 0,
+          "sla_ack_remaining_minutes": null,
+          "sla_close_status": "met",
+          "sla_close_target_minutes": 1440,
+          "sla_close_due_at": "2026-11-28T09:25:40.346619Z",
+          "sla_close_elapsed_minutes": 0,
+          "sla_close_remaining_minutes": null
+        },
+        {
+          "id": 402,
+          "rule_id": "cynet-suspicious-process",
+          "rule_name": "Cynet suspicious process",
+          "severity": "high",
+          "title": "Cynet suspicious / LOLBin process",
+          "description": "Cynet export with suspicious process activity (e.g. encoded PowerShell).",
+          "status": "closed",
+          "mitre": "T1059.001",
+          "evidence": {
+            "count": 33,
+            "mitre": "T1059.001",
+            "sample": {
+              "id": 38624,
+              "host": "app-api-01",
+              "user": "a.admin",
+              "action": "suspicious_process",
+              "dst_ip": null,
+              "src_ip": "10.0.20.15",
+              "message": "Stress Cynet suspicious process"
+            },
+            "triage": {
+              "priors": {
+                "benign": 0,
+                "true_positive": 4,
+                "false_positive": 0
+              },
+              "noise_hint": "likely_signal",
+              "risk_score": 95
+            },
+            "playbook": null,
+            "event_ids": [
+              38624,
+              38616,
+              38612,
+              38599,
+              38578,
+              38576,
+              38575,
+              38534,
+              38528,
+              38524
+            ],
+            "entity_key": "src_ip:10.0.20.15",
+            "entity_keys": [
+              "src_ip:10.0.20.15",
+              "host:app-api-01",
+              "user:a.admin"
+            ],
+            "occurrences": 1,
+            "threat_brief": "Living-off-the-land binaries often mean post-exploitation. Review command line, parent process, and user context; check for lateral movement and persistence.",
+            "fingerprint_hash": "952132a0a17b95e309645a2a3178d647"
+          },
+          "threat_brief": "Living-off-the-land binaries often mean post-exploitation. Review command line, parent process, and user context; check for lateral movement and persistence.",
+          "comments": [],
+          "audit": [],
+          "created_at": "2026-11-27T09:25:40.346619Z",
+          "acked_at": "2026-11-27T09:25:40.765980Z",
+          "closed_at": "2026-11-27T09:25:40.765980Z",
+          "disposition": "true_positive",
+          "closure_note": "Stress seed: confirmed malicious activity for RAG learning priors.",
+          "closed_by": "analyst",
+          "risk_score": 95,
+          "noise_hint": "likely_signal",
+          "cluster_size": null,
+          "campaign_id": null,
+          "fingerprint_hash": "952132a0a17b95e309645a2a3178d647",
+          "sla_ack_status": "met",
+          "sla_ack_target_minutes": 30,
+          "sla_ack_due_at": "2026-11-27T09:55:40.346619Z",
+          "sla_ack_elapsed_minutes": 0,
+          "sla_ack_remaining_minutes": null,
+          "sla_close_status": "met",
+          "sla_close_target_minutes": 480,
+          "sla_close_due_at": "2026-11-27T17:25:40.346619Z",
+          "sla_close_elapsed_minutes": 0,
+          "sla_close_remaining_minutes": null
+        },
+        {
+          "id": 395,
+          "rule_id": "cynet-suspicious-process",
+          "rule_name": "Cynet suspicious process",
+          "severity": "high",
+          "title": "Cynet suspicious / LOLBin process",
+          "description": "Cynet export with suspicious process activity (e.g. encoded PowerShell).",
+          "status": "closed",
+          "mitre": "T1059.001",
+          "evidence": {
+            "count": 16,
+            "mitre": "T1059.001",
+            "sample": {
+              "id": 37622,
+              "host": "win-dc01.lab.local",
+              "user": "a.admin",
+              "action": "suspicious_process",
+              "dst_ip": null,
+              "src_ip": "10.0.20.8",
+              "message": "Stress Cynet suspicious process"
+            },
+            "triage": {
+              "priors": {
+                "benign": 0,
+                "true_positive": 1,
+                "false_positive": 0
+              },
+              "noise_hint": "likely_signal",
+              "risk_score": 100
+            },
+            "event_ids": [
+              37622,
+              37572,
+              37448,
+              37418,
+              37366,
+              37341,
+              37268,
+              37249,
+              37234,
+              37230
+            ],
+            "last_seen": "2026-11-27T09:25:25.767795+00:00",
+            "entity_key": "src_ip:10.0.20.8",
+            "entity_keys": [
+              "src_ip:10.0.20.8",
+              "host:win-dc01.lab.local",
+              "user:a.admin"
+            ],
+            "occurrences": 36,
+            "threat_brief": "Living-off-the-land binaries often mean post-exploitation. Review command line, parent process, and user context; check for lateral movement and persistence.",
+            "fingerprint_hash": "9d451fda8253c25c89943b310a3e0c8a"
+          },
+          "threat_brief": "Living-off-the-land binaries often mean post-exploitation. Review command line, parent process, and user context; check for lateral movement and persistence.",
+          "comments": [],
+          "audit": [],
+          "created_at": "2026-11-27T09:08:26.861009Z",
+          "acked_at": "2026-11-27T09:25:40.927530Z",
+          "closed_at": "2026-11-27T09:25:40.927530Z",
+          "disposition": "true_positive",
+          "closure_note": "Stress seed: confirmed malicious activity for RAG learning priors.",
+          "closed_by": "analyst",
+          "risk_score": 100,
+          "noise_hint": "likely_signal",
+          "cluster_size": null,
+          "campaign_id": null,
+          "fingerprint_hash": "9d451fda8253c25c89943b310a3e0c8a",
+          "sla_ack_status": "met",
+          "sla_ack_target_minutes": 30,
+          "sla_ack_due_at": "2026-11-27T09:38:26.861009Z",
+          "sla_ack_elapsed_minutes": 17,
+          "sla_ack_remaining_minutes": null,
+          "sla_close_status": "met",
+          "sla_close_target_minutes": 480,
+          "sla_close_due_at": "2026-11-27T17:08:26.861009Z",
+          "sla_close_elapsed_minutes": 17,
+          "sla_close_remaining_minutes": null
+        },
+        {
+          "id": 397,
+          "rule_id": "firewall-deny-burst",
+          "rule_name": "Firewall deny from external IP",
+          "severity": "medium",
+          "title": "External firewall deny observed",
+          "description": "Match deny actions on firewall events (demo match rule).",
+          "status": "closed",
+          "mitre": null,
+          "evidence": {
+            "count": 139,
+            "sample": {
+              "id": 37637,
+              "host": "fw-edge-01",
+              "user": null,
+              "action": "deny",
+              "dst_ip": "10.0.20.8",
+              "src_ip": "203.0.113.45",
+              "message": "stress deny"
+            },
+            "triage": {
+              "priors": {
+                "benign": 0,
+                "true_positive": 0,
+                "false_positive": 1
+              },
+              "noise_hint": "unclear",
+              "risk_score": 41
+            },
+            "event_ids": [
+              37637,
+              37634,
+              37631,
+              37630,
+              37621,
+              37618,
+              37617,
+              37612,
+              37611,
+              37610
+            ],
+            "last_seen": "2026-11-27T09:25:25.795987+00:00",
+            "entity_key": "src_ip:203.0.113.45",
+            "entity_keys": [
+              "src_ip:203.0.113.45",
+              "dst_ip:10.0.20.8",
+              "host:fw-edge-01"
+            ],
+            "occurrences": 36,
+            "threat_brief": "A firewall deny from an external address can be reconnaissance, an exploit attempt, or misconfigured outbound traffic. Review destination port/service, volume of similar denies, and whether the same src_ip appears in auth failures.",
+            "fingerprint_hash": "e644b61c2cae1f9f3dc443ec5633f849"
+          },
+          "threat_brief": "A firewall deny from an external address can be reconnaissance, an exploit attempt, or misconfigured outbound traffic. Review destination port/service, volume of similar denies, and whether the same src_ip appears in auth failures.",
+          "comments": [],
+          "audit": [],
+          "created_at": "2026-11-27T09:08:26.861009Z",
+          "acked_at": "2026-11-27T09:25:40.880598Z",
+          "closed_at": "2026-11-27T09:25:40.880598Z",
+          "disposition": "false_positive",
+          "closure_note": "Stress seed: known scanner or lab noise, safe to demote as FP.",
+          "closed_by": "analyst",
+          "risk_score": 41,
+          "noise_hint": "unclear",
+          "cluster_size": null,
+          "campaign_id": null,
+          "fingerprint_hash": "e644b61c2cae1f9f3dc443ec5633f849",
+          "sla_ack_status": "met",
+          "sla_ack_target_minutes": 240,
+          "sla_ack_due_at": "2026-11-27T13:08:26.861009Z",
+          "sla_ack_elapsed_minutes": 17,
+          "sla_ack_remaining_minutes": null,
+          "sla_close_status": "met",
+          "sla_close_target_minutes": 1440,
+          "sla_close_due_at": "2026-11-28T09:08:26.861009Z",
+          "sla_close_elapsed_minutes": 17,
+          "sla_close_remaining_minutes": null
+        },
+        {
+          "id": 394,
+          "rule_id": "cynet-malware-hash",
+          "rule_name": "Cynet malware with file hash",
+          "severity": "critical",
+          "title": "Cynet malware detection (hash present)",
+          "description": "High-severity Cynet malware export that includes a file hash for IOC hunting.",
+          "status": "closed",
+          "mitre": "T1204.002,T1105",
+          "evidence": {
+            "count": 32,
+            "mitre": "T1204.002,T1105",
+            "sample": {
+              "id": 38635,
+              "host": "app-api-01",
+              "user": "j.doe",
+              "action": "malware_detected",
+              "dst_ip": null,
+              "src_ip": "10.0.50.3",
+              "message": "Stress Cynet malware with hash"
+            },
+            "triage": {
+              "priors": {
+                "benign": 0,
+                "true_positive": 2,
+                "false_positive": 0
+              },
+              "noise_hint": "likely_signal",
+              "risk_score": 100
+            },
+            "event_ids": [
+              37613,
+              37605,
+              37604,
+              37590,
+              37548,
+              37529,
+              37475,
+              37441,
+              37391,
+              37370,
+              38635,
+              38622,
+              38621,
+              38540,
+              38536,
+              38505,
+              38497,
+              38495,
+              38482,
+              38478
+            ],
+            "last_seen": "2026-11-27T09:25:40.384931+00:00",
+            "entity_key": "src_ip:10.0.50.3",
+            "entity_keys": [
+              "src_ip:10.0.50.3",
+              "host:app-api-01",
+              "user:j.doe"
+            ],
+            "occurrences": 37,
+            "threat_brief": "Hash-backed malware detections are high-signal. Pull the SHA256 from labels, check TI reputation, and scope other hosts with the same hash or parent process.",
+            "fingerprint_hash": "e5f772493759ea01c0ecaa566ea581fa"
+          },
+          "threat_brief": "Hash-backed malware detections are high-signal. Pull the SHA256 from labels, check TI reputation, and scope other hosts with the same hash or parent process.",
+          "comments": [],
+          "audit": [],
+          "created_at": "2026-11-27T09:08:26.861009Z",
+          "acked_at": "2026-11-27T09:25:40.972624Z",
+          "closed_at": "2026-11-27T09:25:40.972624Z",
+          "disposition": "true_positive",
+          "closure_note": "Stress seed: confirmed malicious activity for RAG learning priors.",
+          "closed_by": "analyst",
+          "risk_score": 100,
+          "noise_hint": "likely_signal",
+          "cluster_size": null,
+          "campaign_id": null,
+          "fingerprint_hash": "e5f772493759ea01c0ecaa566ea581fa",
+          "sla_ack_status": "breached",
+          "sla_ack_target_minutes": 15,
+          "sla_ack_due_at": "2026-11-27T09:23:26.861009Z",
+          "sla_ack_elapsed_minutes": 17,
+          "sla_ack_remaining_minutes": null,
+          "sla_close_status": "met",
+          "sla_close_target_minutes": 120,
+          "sla_close_due_at": "2026-11-27T11:08:26.861009Z",
+          "sla_close_elapsed_minutes": 17,
+          "sla_close_remaining_minutes": null
+        },
+        {
+          "id": 392,
+          "rule_id": "brute-force-windows",
+          "rule_name": "Windows brute-force login",
+          "severity": "high",
+          "title": "Multiple failed Windows logons",
+          "description": "More than 5 failed logons for the same user within 10 minutes.",
+          "status": "open",
+          "mitre": null,
+          "evidence": {
+            "count": 49,
+            "groups": [
+              {
+                "key": "a.admin",
+                "count": 532
+              },
+              {
+                "key": "ext.vendor",
+                "count": 535
+              },
+              {
+                "key": "j.doe",
+                "count": 492
+              },
+              {
+                "key": "r.rossi",
+                "count": 474
+              },
+              {
+                "key": "svc.backup",
+                "count": 535
+              }
+            ],
+            "sample": {
+              "key": "a.admin",
+              "src_ip": null
+            },
+            "triage": {
+              "priors": {
+                "benign": 0,
+                "true_positive": 0,
+                "false_positive": 2
+              },
+              "noise_hint": "likely_noise",
+              "risk_score": 35
+            },
+            "group_by": "user",
+            "event_ids": [],
+            "last_seen": "2026-11-27T09:25:40.374582+00:00",
+            "threshold": 5,
+            "entity_key": "user:a.admin",
+            "entity_keys": [
+              "group:user=a.admin",
+              "user:a.admin"
+            ],
+            "occurrences": 21,
+            "threat_brief": "Repeated failed logons often indicate password spraying or credential stuffing against a domain account. Check source IP reputation, account lockout status, and whether a later login_success followed from the same host.",
+            "window_minutes": 10,
+            "fingerprint_hash": "9cca0a6d1d4b2f164d6b193d39c88a4f"
+          },
+          "threat_brief": "Repeated failed logons often indicate password spraying or credential stuffing against a domain account. Check source IP reputation, account lockout status, and whether a later login_success followed from the same host.",
+          "comments": [],
+          "audit": [],
+          "created_at": "2026-11-27T09:08:26.861009Z",
+          "acked_at": null,
+          "closed_at": null,
+          "disposition": null,
+          "closure_note": null,
+          "closed_by": null,
+          "risk_score": 35,
+          "noise_hint": "likely_noise",
+          "cluster_size": null,
+          "campaign_id": null,
+          "fingerprint_hash": "9cca0a6d1d4b2f164d6b193d39c88a4f",
+          "sla_ack_status": "ok",
+          "sla_ack_target_minutes": 30,
+          "sla_ack_due_at": "2026-11-27T09:38:26.861009Z",
+          "sla_ack_elapsed_minutes": 17,
+          "sla_ack_remaining_minutes": 12,
+          "sla_close_status": "ok",
+          "sla_close_target_minutes": 480,
+          "sla_close_due_at": "2026-11-27T17:08:26.861009Z",
+          "sla_close_elapsed_minutes": 17,
+          "sla_close_remaining_minutes": 462
+        },
+        {
+          "id": 401,
+          "rule_id": "ui-demo-deny",
+          "rule_name": "UI Demo Deny",
+          "severity": "medium",
+          "title": "UI Demo Deny",
+          "description": "Matched 139 event(s)",
+          "status": "open",
+          "mitre": null,
+          "evidence": {
+            "count": 139,
+            "sample": {
+              "id": 37637,
+              "host": "fw-edge-01",
+              "user": null,
+              "action": "deny",
+              "dst_ip": "10.0.20.8",
+              "src_ip": "203.0.113.45",
+              "message": "stress deny"
+            },
+            "triage": {
+              "priors": {
+                "benign": 0,
+                "true_positive": 0,
+                "false_positive": 1
+              },
+              "noise_hint": "unclear",
+              "risk_score": 41
+            },
+            "event_ids": [
+              37637,
+              37634,
+              37631,
+              37630,
+              37621,
+              37618,
+              37617,
+              37612,
+              37611,
+              37610
+            ],
+            "last_seen": "2026-11-27T09:18:01.391857+00:00",
+            "entity_key": "src_ip:203.0.113.45",
+            "entity_keys": [
+              "src_ip:203.0.113.45",
+              "dst_ip:10.0.20.8",
+              "host:fw-edge-01"
+            ],
+            "occurrences": 20,
+            "threat_brief": "Demo rule created via API",
+            "fingerprint_hash": "82f5e1cbabe2ea81a72e7fe6fa675e54"
+          },
+          "threat_brief": "Demo rule created via API",
+          "comments": [],
+          "audit": [],
+          "created_at": "2026-11-27T09:08:26.861009Z",
+          "acked_at": null,
+          "closed_at": null,
+          "disposition": null,
+          "closure_note": null,
+          "closed_by": null,
+          "risk_score": 41,
+          "noise_hint": "unclear",
+          "cluster_size": null,
+          "campaign_id": null,
+          "fingerprint_hash": "82f5e1cbabe2ea81a72e7fe6fa675e54",
+          "sla_ack_status": "ok",
+          "sla_ack_target_minutes": 240,
+          "sla_ack_due_at": "2026-11-27T13:08:26.861009Z",
+          "sla_ack_elapsed_minutes": 17,
+          "sla_ack_remaining_minutes": 222,
+          "sla_close_status": "ok",
+          "sla_close_target_minutes": 1440,
+          "sla_close_due_at": "2026-11-28T09:08:26.861009Z",
+          "sla_close_elapsed_minutes": 17,
+          "sla_close_remaining_minutes": 1422
+        }
+      ]
+    },
+    "memory": {
+      "tenant_id": "lab",
+      "total": 82,
+      "by_disposition": {
+        "true_positive": 26,
+        "false_positive": 56
+      },
+      "last_closed_at": "2026-11-27T09:25:41.064198+00:00",
+      "rag_enabled": true,
+      "rag_top_k": 5,
+      "llm_called": 0,
+      "llm_skipped": 0
+    },
+    "noise_hint_sample": {
+      "likely_noise": 8,
+      "likely_signal": 53,
+      "unclear": 70,
+      "missing": 69
+    },
+    "latency_ms": {
+      "alerts": {
+        "n": 5,
+        "p50": 40.1,
+        "p95": 43.9,
+        "max": 43.9,
+        "mean": 39.6
+      },
+      "queue": {
+        "n": 5,
+        "p50": 44.2,
+        "p95": 58.0,
+        "max": 58.0,
+        "mean": 46.2
+      },
+      "stats": {
+        "n": 6,
+        "p50": 71.0,
+        "p95": 74.3,
+        "max": 74.3,
+        "mean": 69.8
+      },
+      "brief": {
+        "n": 5,
+        "p50": 17.1,
+        "p95": 22.8,
+        "max": 22.8,
+        "mean": 17.9
+      },
+      "copilot": {
+        "n": 5,
+        "p50": 28.1,
+        "p95": 29.2,
+        "max": 29.2,
+        "mean": 26.2
+      },
+      "memory_stats": {
+        "n": 1,
+        "p50": 16.0,
+        "p95": 16.0,
+        "max": 16.0,
+        "mean": 16.0
+      }
+    }
+  }
+}

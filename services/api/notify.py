@@ -5,8 +5,6 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-import httpx
-
 from .lab_settings import get_lab_state
 
 logger = logging.getLogger("darkgreen-siem.notify")
@@ -22,10 +20,16 @@ def _meets_min_severity(severity: str, minimum: str) -> bool:
 
 def _slack_payload(alert: Any) -> dict[str, Any]:
     mitre = getattr(alert, "mitre", None) or (alert.evidence or {}).get("mitre") or ""
+    risk = getattr(alert, "risk_score", None)
+    noise = getattr(alert, "noise_hint", None)
+    extra = ""
+    if risk is not None or noise:
+        extra = f" · risk={risk if risk is not None else 'n/a'} noise={noise or 'n/a'}"
     text = (
         f"*[{(alert.severity or '').upper()}]* {alert.title}\n"
         f"Rule `{alert.rule_id}` · status `{alert.status}`"
         + (f" · MITRE `{mitre}`" if mitre else "")
+        + extra
         + f"\n{alert.description or ''}"
     )
     return {"text": text}
@@ -38,6 +42,10 @@ def _teams_payload(alert: Any) -> dict[str, Any]:
         {"name": "Rule", "value": alert.rule_id or ""},
         {"name": "Status", "value": alert.status or ""},
     ]
+    if getattr(alert, "risk_score", None) is not None:
+        facts.append({"name": "Risk", "value": str(alert.risk_score)})
+    if getattr(alert, "noise_hint", None):
+        facts.append({"name": "Noise", "value": str(alert.noise_hint)})
     if mitre:
         facts.append({"name": "MITRE", "value": str(mitre)})
     return {
@@ -66,22 +74,24 @@ def notify_alert_opened(alert: Any) -> bool:
     min_sev = getattr(state, "notify_min_severity", None) or "high"
     if not _meets_min_severity(alert.severity or "info", min_sev):
         return False
+    min_risk = getattr(state, "notify_min_risk_score", None)
+    if min_risk is not None:
+        risk = getattr(alert, "risk_score", None)
+        if risk is None or int(risk) < int(min_risk):
+            return False
     fmt = (getattr(state, "notify_format", None) or "slack").strip().lower()
     payload = _teams_payload(alert) if fmt == "teams" else _slack_payload(alert)
     try:
-        from .url_safety import validate_egress_url
+        from .url_safety import UnsafeUrlError, egress_post
 
-        safe_url = validate_egress_url(url, purpose="notify webhook")
-    except Exception as exc:
-        logger.warning("Notify webhook URL rejected: %s", type(exc).__name__)
-        return False
-    try:
-        with httpx.Client(timeout=5.0, follow_redirects=False) as client:
-            resp = client.post(safe_url, json=payload)
-            if resp.status_code >= 400:
-                logger.warning("Notify webhook HTTP %s", resp.status_code)
-                return False
+        resp = egress_post(url, purpose="notify webhook", timeout=5.0, json=payload)
+        if resp.status_code >= 400:
+            logger.warning("Notify webhook HTTP %s", resp.status_code)
+            return False
         return True
+    except UnsafeUrlError:
+        logger.warning("Notify webhook URL rejected")
+        return False
     except Exception as exc:
         logger.warning("Notify webhook failed: %s", type(exc).__name__)
         return False

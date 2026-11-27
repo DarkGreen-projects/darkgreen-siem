@@ -36,7 +36,7 @@ def test_setup_keys_patch_and_clear():
     update_lab_state(vt_api_key="vt-secret-12345", abuseipdb_api_key="abuse-abcdef")
     pub = enrichment_keys_public()
     assert pub["vt_configured"] is True
-    assert pub["vt_api_key_masked"] == "****2345"
+    assert pub["vt_api_key_masked"] == "****"
     assert pub["abuseipdb_configured"] is True
     update_lab_state(vt_api_key="CLEAR")
     pub2 = enrichment_keys_public()

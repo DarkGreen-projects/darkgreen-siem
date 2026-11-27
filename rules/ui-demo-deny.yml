@@ -6,7 +6,7 @@ type: match
 severity: medium
 enabled: true
 window_minutes: 10
-cooldown_minutes: 15
+cooldown_minutes: 45
 match:
   action: deny
   source_type: firewall

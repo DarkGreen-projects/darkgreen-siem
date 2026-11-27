@@ -111,6 +111,7 @@ def validate_rule_payload(data: dict[str, Any]) -> dict[str, Any]:
 
     description = str(data.get("description") or "").strip()[:MAX_RULE_TEXT]
     threat_brief = str(data.get("threat_brief") or "").strip()[:MAX_RULE_TEXT]
+    playbook = str(data.get("playbook") or "").strip()[:MAX_RULE_TEXT]
     mitre = _normalize_mitre_field(data)
     window = max(1, min(MAX_WINDOW_MINUTES, int(data.get("window_minutes") or 10)))
     cooldown = max(1, min(MAX_COOLDOWN_MINUTES, int(data.get("cooldown_minutes") or 15)))
@@ -127,6 +128,8 @@ def validate_rule_payload(data: dict[str, Any]) -> dict[str, Any]:
         "window_minutes": window,
         "cooldown_minutes": cooldown,
     }
+    if playbook:
+        out["playbook"] = playbook
     if mitre:
         out["mitre"] = mitre
 

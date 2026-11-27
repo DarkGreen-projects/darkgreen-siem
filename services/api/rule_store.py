@@ -11,6 +11,9 @@ from .rule_validate import validate_rule_payload
 
 
 def load_rules(rules_dir: str | Path) -> list[dict[str, Any]]:
+    import logging
+
+    log = logging.getLogger("darkgreen-siem.rules")
     root = Path(rules_dir)
     if not root.exists():
         return []
@@ -22,8 +25,13 @@ def load_rules(rules_dir: str | Path) -> list[dict[str, Any]]:
             continue
         data.setdefault("id", path.stem)
         data.setdefault("enabled", True)
-        data["_path"] = str(path)
-        rules.append(data)
+        try:
+            validated = validate_rule_payload(data)
+        except Exception as exc:
+            log.warning("Skipping invalid rule file %s: %s", path.name, exc)
+            continue
+        validated["_path"] = str(path)
+        rules.append(validated)
     return rules
 
 

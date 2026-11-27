@@ -4,6 +4,7 @@ export type SavedQuery = {
   q: string;
   source_type: string;
   severity: string;
+  status: string;
   created_at: string;
 };
 
@@ -13,6 +14,7 @@ export type QuickQuery = {
   q: string;
   source_type: string;
   severity: string;
+  status?: string;
 };
 
 const STORAGE_KEY = "darkgreen-siem.saved-queries";
@@ -62,14 +64,22 @@ export function loadSavedQueries(): SavedQuery[] {
     if (!raw) return [];
     const parsed = JSON.parse(raw) as unknown;
     if (!Array.isArray(parsed)) return [];
-    return parsed.filter(
-      (item): item is SavedQuery =>
-        !!item &&
-        typeof item === "object" &&
-        typeof (item as SavedQuery).id === "string" &&
-        typeof (item as SavedQuery).name === "string" &&
-        typeof (item as SavedQuery).q === "string"
-    );
+    return parsed
+      .filter(
+        (item): item is SavedQuery =>
+          !!item &&
+          typeof item === "object" &&
+          typeof (item as SavedQuery).id === "string" &&
+          typeof (item as SavedQuery).name === "string" &&
+          typeof (item as SavedQuery).q === "string"
+      )
+      .map((item) => ({
+        ...item,
+        source_type: typeof item.source_type === "string" ? item.source_type : "",
+        severity: typeof item.severity === "string" ? item.severity : "",
+        status: typeof item.status === "string" ? item.status : "",
+        created_at: typeof item.created_at === "string" ? item.created_at : "",
+      }));
   } catch {
     return [];
   }
@@ -84,6 +94,7 @@ export function addSavedQuery(input: {
   q: string;
   source_type: string;
   severity: string;
+  status?: string;
 }): SavedQuery[] {
   const name = input.name.trim();
   if (!name) return loadSavedQueries();
@@ -93,6 +104,7 @@ export function addSavedQuery(input: {
     q: input.q,
     source_type: input.source_type,
     severity: input.severity,
+    status: input.status || "",
     created_at: new Date().toISOString(),
   };
   const list = [next, ...loadSavedQueries().filter((q) => q.name !== name)];

@@ -11,6 +11,8 @@ Snapshot reali generati dalla suite `tests/lab_proof` e versionati nel repo per 
 | Metriche JSON | [latest/metrics.json](latest/metrics.json) |
 | **Lab populate (live)** | [latest/lab-populate-report.md](latest/lab-populate-report.md) |
 | Metriche populate | [latest/lab-populate-metrics.json](latest/lab-populate-metrics.json) |
+| **Stress mix (live)** | [latest/stress-report.md](latest/stress-report.md) |
+| Metriche stress | [latest/stress-metrics.json](latest/stress-metrics.json) |
 | Screenshot dashboard | [../assets/dashboard-lab.png](../assets/dashboard-lab.png) |
 
 ### Grafici
@@ -30,6 +32,13 @@ Snapshot reali generati dalla suite `tests/lab_proof` e versionati nel repo per 
 
 ```bash
 python -m tests.lab_proof --with-pytest
+```
+
+Stress harness (lab Docker, mix 80/20):
+
+```bash
+python scripts/lab_stress_populate.py --events 5000 --profile mix --login --seed-dispositions 40
+python scripts/lab_stress_measure.py --login
 ```
 
 Copia automatica in `docs/lab-reports/latest/` + `tests/lab_proof/out/latest/`.

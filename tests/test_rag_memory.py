@@ -164,9 +164,9 @@ def test_copilot_local_first_skips_httpx():
             llm_model="gpt-4o-mini",
             rag_top_k=5,
         )
-        with patch("services.api.copilot.httpx.Client") as client_cls:
+        with patch("services.api.url_safety.egress_post") as post:
             out = suggest_closure(brief)
-            client_cls.assert_not_called()
+            post.assert_not_called()
     assert out["source"] == "local_memory"
     assert out["available"] is True
 
@@ -195,10 +195,6 @@ def test_copilot_llm_receives_cases(monkeypatch):
             }
         ]
     }
-    fake_client = MagicMock()
-    fake_client.__enter__.return_value = fake_client
-    fake_client.__exit__.return_value = None
-    fake_client.post.return_value = fake_resp
 
     brief = {
         "summary": "Alert ambiguous",
@@ -217,17 +213,13 @@ def test_copilot_llm_receives_cases(monkeypatch):
     }
     with (
         patch("services.api.copilot.get_lab_state", return_value=state),
-        patch(
-            "services.api.url_safety.validate_egress_url",
-            side_effect=lambda u, purpose="egress": u,
-        ),
-        patch("services.api.copilot.httpx.Client", return_value=fake_client),
+        patch("services.api.url_safety.egress_post", return_value=fake_resp) as post,
     ):
         out = suggest_closure(brief)
     assert out["available"] is True
     assert out["source"] == "llm_rag"
     assert out["suggested_disposition"] == "tuning_needed"
-    body = fake_client.post.call_args.kwargs["json"]
+    body = post.call_args.kwargs["json"]
     user = body["messages"][1]["content"]
     assert "cases" in user
     assert "backup user" in user

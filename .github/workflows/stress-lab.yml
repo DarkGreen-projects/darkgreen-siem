@@ -1,0 +1,55 @@
+name: Stress lab gate
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 6 * * 1"
+
+jobs:
+  stress:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Start lean stack
+        run: docker compose up -d --build postgres api
+      - name: Wait for API
+        run: |
+          for i in $(seq 1 40); do
+            if curl -sf http://127.0.0.1:8000/health >/dev/null; then exit 0; fi
+            sleep 3
+          done
+          docker compose logs api --tail 80
+          exit 1
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Run stress (1k mix)
+        run: |
+          python scripts/lab_stress_populate.py \
+            --api http://127.0.0.1:8000 \
+            --events 1000 \
+            --profile mix \
+            --login \
+            --seed-dispositions 10 \
+            --out docs/lab-reports/latest
+      - name: Gate p95
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          m = json.loads(Path("docs/lab-reports/latest/stress-metrics.json").read_text())
+          lat = (m.get("after") or {}).get("latency_ms") or {}
+          failed = []
+          for name in ("alerts", "queue"):
+              row = lat.get(name) or {}
+              p95 = float(row.get("p95") or 0)
+              if p95 > 500:
+                  failed.append(f"{name} p95={p95}ms > 500ms")
+          if failed:
+              raise SystemExit("FAIL: " + "; ".join(failed))
+          print("OK stress gate", {k: lat[k].get("p95") for k in lat})
+          PY
+      - name: Teardown
+        if: always()
+        run: docker compose down -v

@@ -1,30 +1,48 @@
 {
-  "generated_at": "2026-11-25T12:28:57.232424+00:00",
+  "generated_at": "2026-11-27T09:25:14.073709+00:00",
   "repo": "C:\\Users\\feded\\Projects\\darkgreen-siem",
   "rules": {
     "by_type": {
       "threshold": 3,
       "match": 7,
-      "correlation": 2
+      "correlation": 3
     },
     "by_severity": {
       "high": 5,
-      "critical": 5,
+      "critical": 6,
       "medium": 2
     },
     "mitre_techniques": {
       "T1204": 2,
+      "T1059": 2,
       "T1105": 1,
-      "T1059": 1
+      "T1110": 1,
+      "T1078": 1
     },
     "coverage": {
-      "rules_total": 12,
+      "rules_total": 13,
       "rules_enabled_pct": 100.0,
-      "mitre_pct": 25.0,
+      "mitre_pct": 30.8,
       "threat_brief_pct": 100.0,
-      "quality_score": 73.8
+      "quality_score": 75.8
     },
     "top_impact_rules": [
+      {
+        "id": "spray-success-process",
+        "name": "Spray then success then suspicious process",
+        "type": "correlation",
+        "severity": "critical",
+        "enabled": true,
+        "mitre": [
+          "T1110",
+          "T1078",
+          "T1059"
+        ],
+        "has_threat_brief": true,
+        "impact_weight": 11,
+        "cooldown_minutes": 90,
+        "window_minutes": 60
+      },
       {
         "id": "spray-then-malicious-ip",
         "name": "Spray then malicious IP",
@@ -113,26 +131,14 @@
         "mitre": [],
         "has_threat_brief": true,
         "impact_weight": 5,
-        "cooldown_minutes": 15,
+        "cooldown_minutes": 40,
         "window_minutes": 10
-      },
-      {
-        "id": "cloud-auth-failures",
-        "name": "Cloud identity failures",
-        "type": "threshold",
-        "severity": "high",
-        "enabled": true,
-        "mitre": [],
-        "has_threat_brief": true,
-        "impact_weight": 5,
-        "cooldown_minutes": 15,
-        "window_minutes": 15
       }
     ]
   },
   "tests": {
-    "files": 21,
-    "tests_estimated": 142,
+    "files": 22,
+    "tests_estimated": 156,
     "by_file": {
       "test_alert_graph": 9,
       "test_alert_search": 3,
@@ -142,6 +148,7 @@
       "test_cynet_notify_dedup": 9,
       "test_enrich_keys_correlation": 7,
       "test_fortigate_parser": 6,
+      "test_hardening_enhancements": 5,
       "test_input_validation": 7,
       "test_lab_ops": 6,
       "test_lab_proof_report": 2,
@@ -151,17 +158,17 @@
       "test_rbac_tenant": 3,
       "test_rule_create": 7,
       "test_security_compress": 7,
-      "test_security_hardening": 11,
+      "test_security_hardening": 16,
       "test_stats_helpers": 5,
-      "test_triage_learning": 5,
-      "test_workbench_copilot": 8
+      "test_triage_learning": 6,
+      "test_workbench_copilot": 11
     },
     "by_upgrade_area": {
-      "auth_rbac": 24,
+      "auth_rbac": 29,
       "detection_rules": 30,
-      "triage_workbench": 22,
+      "triage_workbench": 26,
       "alert_graph_rag": 17,
-      "security_lean": 40,
+      "security_lean": 45,
       "parsers": 15
     }
   },
@@ -232,10 +239,5 @@
     ],
     "lean_impact_score": 120
   },
-  "pytest": {
-    "exit_code": 0,
-    "passed": 142,
-    "failed": 0,
-    "tail": "    class AlertOut(BaseModel):\n\nservices\\api\\schemas.py:206\n  C:\\Users\\feded\\Projects\\darkgreen-siem\\services\\api\\schemas.py:206: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.13/migration/\n    class AuditOut(BaseModel):\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n142 passed, 4 warnings in 1.05s"
-  }
+  "pytest": null
 }

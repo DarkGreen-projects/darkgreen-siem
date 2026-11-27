@@ -188,6 +188,9 @@ class AlertOut(BaseModel):
     closed_by: str | None = None
     risk_score: int | None = None
     noise_hint: str | None = None
+    cluster_size: int | None = None
+    campaign_id: int | None = None
+    fingerprint_hash: str | None = None
     sla_ack_status: str | None = None
     sla_ack_target_minutes: int | None = None
     sla_ack_due_at: datetime | None = None
@@ -274,6 +277,8 @@ class TriageBriefOut(BaseModel):
     risk_score: int | None = None
     mitre: str | None = None
     threat_brief: str | None = None
+    playbook: str | None = None
+    asset_context: dict[str, Any] | None = None
     cases: list[MemoryCaseOut] = Field(default_factory=list)
     connected: list[ConnectedAlertOut] = Field(default_factory=list)
     fingerprint: dict[str, Any] = Field(default_factory=dict)
@@ -291,6 +296,10 @@ class CopilotSuggestOut(BaseModel):
     related_alert_ids: list[int] = Field(default_factory=list)
     relation_hint: str | None = None
     brief: TriageBriefOut | None = None
+    priority: str | None = None
+    noise_action: str | None = None
+    llm_skipped: str | None = None
+    llm_redacted: bool | None = None
 
 
 class MemoryStatsOut(BaseModel):
@@ -300,6 +309,39 @@ class MemoryStatsOut(BaseModel):
     last_closed_at: str | None = None
     rag_enabled: bool = True
     rag_top_k: int = 5
+    llm_called: int = 0
+    llm_skipped: int = 0
+
+
+class CopilotFeedbackIn(BaseModel):
+    useful: bool = True
+
+
+class BulkCloseIn(BaseModel):
+    alert_ids: list[int] | None = None
+    noise_hint: str | None = Field(default=None, max_length=32)
+    disposition: str = Field(default="false_positive", max_length=32)
+    closure_note: str = Field(
+        default="Noise training batch: false positive lab noise for RAG priors.",
+        min_length=10,
+        max_length=4000,
+    )
+    limit: int = Field(default=50, ge=1, le=200)
+
+
+class BulkCloseOut(BaseModel):
+    closed: int = 0
+    ids: list[int] = Field(default_factory=list)
+
+
+class RotateSealedIn(BaseModel):
+    old_secret: str = Field(..., min_length=8, max_length=512)
+    new_secret: str = Field(..., min_length=8, max_length=512)
+
+
+class RotateSealedOut(BaseModel):
+    resealed: int = 0
+    message: str | None = None
 
 
 class VtEnrichOut(BaseModel):
@@ -451,6 +493,10 @@ class SetupOut(BaseModel):
     graph_enabled: bool = True
     graph_window_minutes: int = 120
     graph_min_history: int = 15
+    graph_peer_limit: int = 40
+    suppress_noise_in_queue: bool = False
+    llm_effort: str = "low"
+    notify_min_risk_score: int | None = None
 
 
 class SetupUpdate(BaseModel):
@@ -477,6 +523,10 @@ class SetupUpdate(BaseModel):
     graph_enabled: bool | None = None
     graph_window_minutes: int | None = Field(default=None, ge=5, le=10080)
     graph_min_history: int | None = Field(default=None, ge=0, le=10000)
+    graph_peer_limit: int | None = Field(default=None, ge=10, le=80)
+    suppress_noise_in_queue: bool | None = None
+    llm_effort: str | None = Field(default=None, max_length=16)
+    notify_min_risk_score: int | None = Field(default=None, ge=0, le=100)
 
 
 class ProviderEnrichOut(BaseModel):

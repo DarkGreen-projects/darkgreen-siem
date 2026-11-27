@@ -4,7 +4,11 @@ from __future__ import annotations
 
 import ipaddress
 import socket
+from contextlib import contextmanager
+from typing import Any, Iterator
 from urllib.parse import urlparse
+
+import httpx
 
 from .config import get_settings
 
@@ -15,6 +19,12 @@ _BLOCKED_HOSTNAMES = frozenset(
         "metadata.google.internal",
         "metadata",
     }
+)
+
+# Extra ranges beyond ipaddress.is_private (CGNAT, cloud metadata aliases).
+_EXTRA_BLOCKED_NETWORKS = (
+    ipaddress.ip_network("100.64.0.0/10"),  # CGNAT / carrier-grade NAT
+    ipaddress.ip_network("100.100.100.200/32"),  # Alibaba metadata
 )
 
 
@@ -30,14 +40,46 @@ def _host_allowlist() -> set[str]:
 
 
 def _is_blocked_ip(ip: ipaddress.IPv4Address | ipaddress.IPv6Address) -> bool:
-    return bool(
+    if bool(
         ip.is_private
         or ip.is_loopback
         or ip.is_link_local
         or ip.is_multicast
         or ip.is_reserved
         or ip.is_unspecified
-    )
+    ):
+        return True
+    for net in _EXTRA_BLOCKED_NETWORKS:
+        if ip in net:
+            return True
+    return False
+
+
+def _resolve_ips(hostname: str) -> list[str]:
+    host = hostname.strip().lower().rstrip(".")
+    if not host:
+        return []
+    try:
+        ip = ipaddress.ip_address(host)
+        return [] if _is_blocked_ip(ip) else [str(ip)]
+    except ValueError:
+        pass
+    try:
+        infos = socket.getaddrinfo(host, None)
+    except socket.gaierror:
+        return []
+    out: list[str] = []
+    for info in infos:
+        addr = info[4][0]
+        try:
+            parsed = ipaddress.ip_address(addr)
+        except ValueError:
+            continue
+        if _is_blocked_ip(parsed):
+            return []
+        if addr not in out:
+            out.append(addr)
+    return out
 
 
 def _resolve_blocked(hostname: str) -> bool:
@@ -51,19 +93,8 @@ def _resolve_blocked(hostname: str) -> bool:
         return _is_blocked_ip(ip)
     except ValueError:
         pass
-    try:
-        infos = socket.getaddrinfo(host, None)
-    except socket.gaierror:
-        # Unresolvable: fail closed for egress
-        return True
-    for info in infos:
-        addr = info[4][0]
-        try:
-            if _is_blocked_ip(ipaddress.ip_address(addr)):
-                return True
-        except ValueError:
-            continue
-    return False
+    ips = _resolve_ips(host)
+    return not ips
 
 
 def validate_egress_url(url: str, *, purpose: str = "egress") -> str:
@@ -96,3 +127,69 @@ def validate_egress_url(url: str, *, purpose: str = "egress") -> str:
     if _resolve_blocked(host):
         raise UnsafeUrlError(f"{purpose} URL targets a blocked/private host")
     return text
+
+
+@contextmanager
+def _force_host_resolve(hostname: str, ip: str) -> Iterator[None]:
+    """Pin getaddrinfo for hostname to a previously validated public IP."""
+    real_gai = socket.getaddrinfo
+
+    def _pinned(
+        host: str | bytes | None,
+        port: Any,
+        family: int = 0,
+        type: int = 0,
+        proto: int = 0,
+        flags: int = 0,
+    ):
+        h = host.decode() if isinstance(host, (bytes, bytearray)) else (host or "")
+        if h.lower().rstrip(".") == hostname.lower().rstrip("."):
+            return real_gai(ip, port, family, type, proto, flags)
+        return real_gai(host, port, family, type, proto, flags)
+
+    socket.getaddrinfo = _pinned  # type: ignore[assignment]
+    try:
+        yield
+    finally:
+        socket.getaddrinfo = real_gai  # type: ignore[assignment]
+
+
+def egress_request(
+    method: str,
+    url: str,
+    *,
+    purpose: str = "egress",
+    timeout: float = 8.0,
+    headers: dict[str, str] | None = None,
+    json: Any = None,
+    **kwargs: Any,
+) -> httpx.Response:
+    """
+    HTTP request after egress validation, with DNS pinned to a public IP
+    resolved at validation time (mitigates DNS rebinding TOCTOU).
+    """
+    safe = validate_egress_url(url, purpose=purpose)
+    # Fresh resolve immediately before connect.
+    safe = validate_egress_url(safe, purpose=purpose)
+    host = (urlparse(safe).hostname or "").strip().lower()
+    ips = _resolve_ips(host)
+    if not ips:
+        raise UnsafeUrlError(f"{purpose} host unresolved or blocked at connect time")
+    pin_ip = ips[0]
+    req_kwargs: dict[str, Any] = {
+        "method": method.upper(),
+        "url": safe,
+        "headers": headers,
+        "timeout": timeout,
+        "follow_redirects": False,
+        **kwargs,
+    }
+    if json is not None:
+        req_kwargs["json"] = json
+    with _force_host_resolve(host, pin_ip):
+        with httpx.Client(timeout=timeout, follow_redirects=False) as client:
+            return client.request(**req_kwargs)
+
+
+def egress_post(url: str, **kwargs: Any) -> httpx.Response:
+    return egress_request("POST", url, **kwargs)

@@ -12,7 +12,7 @@ enabled: true
 window_minutes: 10
 threshold: 5
 group_by: user
-cooldown_minutes: 15
+cooldown_minutes: 40
 match:
   action: login_failed
   source_type: windows

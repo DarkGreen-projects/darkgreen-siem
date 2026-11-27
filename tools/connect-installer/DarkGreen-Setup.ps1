@@ -195,6 +195,26 @@ function Get-NxLogSnippet {
 "@
 }
 
+function Write-AgentConfigFile {
+  param(
+    [string]$SiemUrl,
+    [string]$Token
+  )
+  $cfgDir = Join-Path $env:ProgramData "DarkGreen"
+  New-Item -ItemType Directory -Force -Path $cfgDir | Out-Null
+  $cfgPath = Join-Path $cfgDir "agent.env"
+  @"
+SIEM_URL=$SiemUrl
+SIEM_API_TOKEN=$Token
+"@ | Set-Content -Path $cfgPath -Encoding ASCII -Force
+  try {
+    icacls $cfgPath /inheritance:r /grant:r "SYSTEM:(R)" "Administrators:(F)" "BUILTIN\Administrators:(F)" | Out-Null
+  } catch {
+    Add-Log "ACL su agent.env non applicate (continua comunque): $_" "warn"
+  }
+  return $cfgPath
+}
+
 function Install-AgentScheduledTask {
   param([int]$IntervalSec = 60)
   $agentDir = Join-Path (Split-Path $PSScriptRoot -Parent) "windows-agent"
@@ -210,8 +230,10 @@ function Install-AgentScheduledTask {
     Add-Log "Serve Admin per creare Scheduled Task" "fail"
     return $false
   }
+  $cfgPath = Write-AgentConfigFile -SiemUrl $script:State.SiemUrl -Token $script:State.Token
   $taskName = "DarkGreen-Windows-Agent"
-  $arg = "-NoProfile -ExecutionPolicy Bypass -File `"$agentPs1`" -SiemUrl `"$($script:State.SiemUrl)`" -Token `"$($script:State.Token)`" -IntervalSec $IntervalSec"
+  # Token lives in agent.env (ACL-restricted), not in Task Scheduler argv.
+  $arg = "-NoProfile -ExecutionPolicy Bypass -File `"$agentPs1`" -ConfigPath `"$cfgPath`" -IntervalSec $IntervalSec"
   $action = New-ScheduledTaskAction -Execute "powershell.exe" -Argument $arg
   $trigger = New-ScheduledTaskTrigger -Once -At (Get-Date).AddMinutes(1) -RepetitionInterval (New-TimeSpan -Minutes ([Math]::Max(1, [int]($IntervalSec / 60)))) -RepetitionDuration ([TimeSpan]::MaxValue)
   if ($IntervalSec -lt 60) {
@@ -219,9 +241,9 @@ function Install-AgentScheduledTask {
   }
   $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable
   Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $trigger -Settings $settings -Force | Out-Null
-  # Also run once now
-  Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$agentPs1`" -SiemUrl `"$($script:State.SiemUrl)`" -Token `"$($script:State.Token)`" -Once" -WindowStyle Hidden
-  Add-Log "Scheduled Task '$taskName' creato + run -Once" "ok"
+  # Also run once now (still no token on cmdline)
+  Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$agentPs1`" -ConfigPath `"$cfgPath`" -Once" -WindowStyle Hidden
+  Add-Log "Scheduled Task '$taskName' creato + run -Once (config $cfgPath)" "ok"
   return $true
 }
 

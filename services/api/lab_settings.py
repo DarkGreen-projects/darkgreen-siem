@@ -70,6 +70,10 @@ class LabState:
     graph_enabled: bool = True
     graph_window_minutes: int = 120
     graph_min_history: int = 15
+    graph_peer_limit: int = 40
+    suppress_noise_in_queue: bool = False
+    llm_effort: str = "low"
+    notify_min_risk_score: int | None = None
     _vt_cleared: bool = False
     _abuse_cleared: bool = False
     _otx_cleared: bool = False
@@ -124,6 +128,10 @@ def _from_settings(s: Settings) -> LabState:
         graph_enabled=True,
         graph_window_minutes=120,
         graph_min_history=15,
+        graph_peer_limit=40,
+        suppress_noise_in_queue=False,
+        llm_effort="low",
+        notify_min_risk_score=None,
     )
 
 
@@ -242,6 +250,30 @@ def load_lab_settings_from_db(db: Session) -> LabState:
                 state.graph_min_history = max(0, min(10000, int(rows["graph_min_history"])))
             except ValueError:
                 pass
+        if "graph_peer_limit" in rows:
+            try:
+                state.graph_peer_limit = max(10, min(80, int(rows["graph_peer_limit"])))
+            except ValueError:
+                pass
+        if "suppress_noise_in_queue" in rows:
+            state.suppress_noise_in_queue = rows["suppress_noise_in_queue"].lower() in {
+                "1",
+                "true",
+                "yes",
+            }
+        if "llm_effort" in rows and rows["llm_effort"]:
+            effort = rows["llm_effort"].strip().lower()
+            if effort in {"low", "high"}:
+                state.llm_effort = effort
+        if "notify_min_risk_score" in rows:
+            raw = (rows["notify_min_risk_score"] or "").strip()
+            if raw == "":
+                state.notify_min_risk_score = None
+            else:
+                try:
+                    state.notify_min_risk_score = max(0, min(100, int(raw)))
+                except ValueError:
+                    pass
         return state
 
 
@@ -291,6 +323,18 @@ def persist_lab_state(db: Session, state: LabState | None = None) -> None:
         _persist_key(db, "graph_enabled", "true" if s.graph_enabled else "false")
         _persist_key(db, "graph_window_minutes", str(int(s.graph_window_minutes or 120)))
         _persist_key(db, "graph_min_history", str(int(s.graph_min_history or 15)))
+        _persist_key(db, "graph_peer_limit", str(int(s.graph_peer_limit or 40)))
+        _persist_key(
+            db,
+            "suppress_noise_in_queue",
+            "true" if s.suppress_noise_in_queue else "false",
+        )
+        _persist_key(db, "llm_effort", (s.llm_effort or "low").strip().lower())
+        _persist_key(
+            db,
+            "notify_min_risk_score",
+            "" if s.notify_min_risk_score is None else str(int(s.notify_min_risk_score)),
+        )
         db.commit()
 
 
@@ -332,6 +376,10 @@ def update_lab_state(
     graph_enabled: bool | None = None,
     graph_window_minutes: int | None = None,
     graph_min_history: int | None = None,
+    graph_peer_limit: int | None = None,
+    suppress_noise_in_queue: bool | None = None,
+    llm_effort: str | None = None,
+    notify_min_risk_score: int | None = None,
     db: Session | None = None,
 ) -> LabState:
     state = get_lab_state()
@@ -431,6 +479,21 @@ def update_lab_state(
             if graph_min_history < 0 or graph_min_history > 10000:
                 raise ValueError("graph_min_history must be 0..10000")
             state.graph_min_history = int(graph_min_history)
+        if graph_peer_limit is not None:
+            if graph_peer_limit < 10 or graph_peer_limit > 80:
+                raise ValueError("graph_peer_limit must be 10..80")
+            state.graph_peer_limit = int(graph_peer_limit)
+        if suppress_noise_in_queue is not None:
+            state.suppress_noise_in_queue = bool(suppress_noise_in_queue)
+        if llm_effort is not None and llm_effort.strip():
+            effort = llm_effort.strip().lower()
+            if effort not in {"low", "high"}:
+                raise ValueError("llm_effort must be low or high")
+            state.llm_effort = effort
+        if notify_min_risk_score is not None:
+            if notify_min_risk_score < 0 or notify_min_risk_score > 100:
+                raise ValueError("notify_min_risk_score must be 0..100")
+            state.notify_min_risk_score = int(notify_min_risk_score)
     if db is not None:
         persist_lab_state(db, state)
     return state
@@ -447,11 +510,11 @@ def enrichment_keys_public(state: LabState | None = None) -> dict:
     s = state or get_lab_state()
     return {
         "vt_configured": bool(s.vt_api_key),
-        "vt_api_key_masked": mask_secret(s.vt_api_key),
+        "vt_api_key_masked": mask_secret(s.vt_api_key, reveal_tail=False),
         "abuseipdb_configured": bool(s.abuseipdb_api_key),
-        "abuseipdb_api_key_masked": mask_secret(s.abuseipdb_api_key),
+        "abuseipdb_api_key_masked": mask_secret(s.abuseipdb_api_key, reveal_tail=False),
         "otx_configured": bool(s.otx_api_key),
-        "otx_api_key_masked": mask_secret(s.otx_api_key),
+        "otx_api_key_masked": mask_secret(s.otx_api_key, reveal_tail=False),
         "notify_webhook_configured": bool(s.notify_webhook_url),
         "notify_webhook_url_masked": mask_secret(s.notify_webhook_url, reveal_tail=False),
         "notify_format": s.notify_format or "slack",
@@ -471,4 +534,8 @@ def enrichment_keys_public(state: LabState | None = None) -> dict:
         "graph_enabled": bool(getattr(s, "graph_enabled", True)),
         "graph_window_minutes": int(getattr(s, "graph_window_minutes", 120) or 120),
         "graph_min_history": int(getattr(s, "graph_min_history", 15) or 15),
+        "graph_peer_limit": int(getattr(s, "graph_peer_limit", 40) or 40),
+        "suppress_noise_in_queue": bool(getattr(s, "suppress_noise_in_queue", False)),
+        "llm_effort": (getattr(s, "llm_effort", None) or "low"),
+        "notify_min_risk_score": getattr(s, "notify_min_risk_score", None),
     }

@@ -20,6 +20,34 @@ NOTE_MAX = 500
 CASE_NOTE_MAX = 200
 BACKFILL_CAP = 2000
 
+_INJECTION_RE = re.compile(
+    r"(ignore\s+previous|system\s*prompt|javascript:|<script|```\s*system)",
+    re.IGNORECASE,
+)
+_CTRL_RE = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f]")
+
+
+def sanitize_closure_note(note: str) -> tuple[str, bool]:
+    """Strip HTML/control chars and injection-ish patterns. Returns (text, sanitized)."""
+    raw = (note or "").strip()
+    if not raw:
+        return "", False
+    sanitized = False
+    text = _CTRL_RE.sub("", raw)
+    text = re.sub(r"<[^>]+>", " ", text)
+    text = text.replace("javascript:", "")
+    if _INJECTION_RE.search(text):
+        text = _INJECTION_RE.sub("[redacted]", text)
+        sanitized = True
+        text = text[: min(120, NOTE_MAX)]
+    # Reject near-spam (same char repeated)
+    if len(set(text.replace(" ", ""))) <= 2 and len(text) >= 10:
+        return "nota rumore lab (spam ridotto)", True
+    text = " ".join(text.split())
+    if text != raw:
+        sanitized = True
+    return text[:NOTE_MAX], sanitized
+
 
 def _entity_key(alert: Alert) -> str | None:
     from .entity_norm import alert_entity_keys
@@ -56,12 +84,15 @@ def upsert_alert_memory(db: Session, alert: Alert) -> AlertMemory | None:
     """Index a closed alert into alert_memory. No-op if missing disposition/note."""
     if (alert.status or "").lower() != "closed":
         return None
-    note = (getattr(alert, "closure_note", None) or "").strip()
+    note_raw = (getattr(alert, "closure_note", None) or "").strip()
     disp = (getattr(alert, "disposition", None) or "").strip()
+    note, was_sanitized = sanitize_closure_note(note_raw)
     if not disp or len(note) < 10:
         return None
     entity = _entity_key(alert)
     excerpt = note[:NOTE_MAX]
+    if was_sanitized:
+        excerpt = f"[sanitized] {excerpt}"[:NOTE_MAX]
     memory_text = _build_memory_text(
         title=alert.title or "",
         rule_id=alert.rule_id or "",
@@ -224,6 +255,41 @@ def retrieve_cases(
             score += 2.0
         if note:
             score += 0.5
+        # Light boost from analyst thumbs on same rule (cap ±5)
+        try:
+            from .models import CopilotFeedback
+
+            useful_n = (
+                db.scalar(
+                    select(func.count())
+                    .select_from(CopilotFeedback)
+                    .where(
+                        and_(
+                            CopilotFeedback.tenant_id == tenant,
+                            CopilotFeedback.rule_id == (s.rule_id or rule_id),
+                            CopilotFeedback.useful.is_(True),
+                        )
+                    )
+                )
+                or 0
+            )
+            unuseful_n = (
+                db.scalar(
+                    select(func.count())
+                    .select_from(CopilotFeedback)
+                    .where(
+                        and_(
+                            CopilotFeedback.tenant_id == tenant,
+                            CopilotFeedback.rule_id == (s.rule_id or rule_id),
+                            CopilotFeedback.useful.is_(False),
+                        )
+                    )
+                )
+                or 0
+            )
+            score += max(-5.0, min(5.0, float(useful_n - unuseful_n) * 0.5))
+        except Exception:
+            pass
         scored[s.id] = _case_dict(
             alert_id=s.id,
             rule_id=s.rule_id or "",

@@ -25,11 +25,15 @@ function statusBadgeClass(status: string): string {
 }
 
 async function downloadTool(path: string, filename: string) {
-  const { getStoredToken } = await import("../api");
+  const { AuthError, clearAuthSession, getStoredToken } = await import("../api");
   const token = getStoredToken();
   const headers: Record<string, string> = {};
   if (token) headers.Authorization = `Bearer ${token}`;
   const res = await fetch(path, { headers });
+  if (res.status === 401) {
+    clearAuthSession();
+    throw new AuthError();
+  }
   if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
   const blob = await res.blob();
   const a = document.createElement("a");

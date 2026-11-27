@@ -12,7 +12,7 @@ import json
 from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
-from sqlalchemy import and_, func, select
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.orm import Session
 
 from .auth import (
@@ -56,8 +56,11 @@ from .schemas import (
     AlertOut,
     AlertSearchHit,
     AuditOut,
+    BulkCloseIn,
+    BulkCloseOut,
     CommentCreate,
     CommentOut,
+    CopilotFeedbackIn,
     DryRunRequest,
     DryRunResponse,
     DryRunHit,
@@ -65,6 +68,8 @@ from .schemas import (
     IngestRequest,
     IngestResponse,
     PurgeResult,
+    RotateSealedIn,
+    RotateSealedOut,
     RuleCreate,
     RuleEnabledUpdate,
     RuleOut,
@@ -224,6 +229,8 @@ def alert_to_out(
         closed_by=getattr(alert, "closed_by", None),
         risk_score=getattr(alert, "risk_score", None),
         noise_hint=getattr(alert, "noise_hint", None),
+        fingerprint_hash=getattr(alert, "fingerprint_hash", None)
+        or (evidence.get("fingerprint_hash") if isinstance(evidence, dict) else None),
         **sla,
     )
 
@@ -291,6 +298,49 @@ def apply_alert_status(
             upsert_alert_memory(db, alert)
         except Exception:
             logger.exception("alert_memory upsert failed for alert %s", alert.id)
+        # Mark copilot applied if last suggest matches disposition+note prefix
+        try:
+            from .models import CopilotAudit
+
+            last = db.scalars(
+                select(CopilotAudit)
+                .where(
+                    and_(
+                        CopilotAudit.alert_id == alert.id,
+                        CopilotAudit.action == "copilot_suggest",
+                    )
+                )
+                .order_by(CopilotAudit.created_at.desc())
+                .limit(1)
+            ).first()
+            if last and last.suggested_disposition == alert.disposition:
+                db.add(
+                    CopilotAudit(
+                        tenant_id=getattr(alert, "tenant_id", None) or "lab",
+                        alert_id=alert.id,
+                        actor=(actor or "analyst").strip() or "analyst",
+                        action="copilot_applied",
+                        source=last.source,
+                        suggested_disposition=last.suggested_disposition,
+                        llm_skipped=last.llm_skipped,
+                        priority=last.priority,
+                        noise_action=last.noise_action,
+                    )
+                )
+        except Exception:
+            logger.debug("copilot_applied audit skipped", exc_info=True)
+        try:
+            from .triage_score import refresh_open_after_disposition
+
+            entity = str((alert.evidence or {}).get("entity_key") or "")
+            refresh_open_after_disposition(
+                db,
+                tenant_id=getattr(alert, "tenant_id", None) or "lab",
+                rule_id=alert.rule_id or "",
+                entity_key=entity,
+            )
+        except Exception:
+            logger.debug("open rescore after disposition skipped", exc_info=True)
 
 
 def _handle_syslog(message: str, host: str) -> None:
@@ -342,6 +392,18 @@ async def _maintenance_loop(stop: asyncio.Event) -> None:
             load_lab_settings_from_db(db)
             purge_all_tenants(db)
             evaluate_silence_alerts(db)
+            try:
+                from .triage_score import backfill_open_scores
+
+                n = backfill_open_scores(
+                    db, tenant_id=settings.default_tenant_id, batch_size=100
+                )
+                if n:
+                    db.commit()
+                    logger.info("Triage score backfill: %s alerts", n)
+            except Exception:
+                logger.exception("Triage backfill failed")
+                db.rollback()
         except Exception:
             logger.exception("Maintenance loop error")
             db.rollback()
@@ -371,6 +433,18 @@ async def lifespan(app: FastAPI):
                 logger.info("Alert memory backfill: %s rows", n_mem)
         except Exception:
             logger.exception("Alert memory backfill skipped")
+            db.rollback()
+        try:
+            from .triage_score import backfill_open_scores
+
+            n_score = backfill_open_scores(
+                db, tenant_id=settings.default_tenant_id, batch_size=200
+            )
+            if n_score:
+                db.commit()
+                logger.info("Triage score backfill: %s alerts", n_score)
+        except Exception:
+            logger.exception("Triage score backfill skipped")
             db.rollback()
         if settings.seed_on_start:
             seed_samples(db, settings.samples_dir)
@@ -451,7 +525,7 @@ def api_login(
     request: Request,
     db: Session = Depends(get_db),
 ) -> LoginResponse:
-    enforce_login_rate(request)
+    enforce_login_rate(request, db=db)
     username = body.username.strip()
     if not settings.auth_enabled:
         token, exp = issue_user_token(
@@ -518,7 +592,13 @@ def api_ingest(
     db: Session = Depends(get_db),
     principal: AuthPrincipal = Depends(require_perm("ingest")),
 ) -> IngestResponse:
-    enforce_ingest_rate(request, identity=principal.username or "ingest")
+    enforce_ingest_rate(
+        request,
+        identity=principal.username or "ingest",
+        kind=getattr(principal, "kind", None) or "user",
+        db=db,
+        tenant_id=principal.tenant_id,
+    )
     items: list[tuple[Any, str | None, str]] = []
     for ev in body.events:
         items.append((ev.payload, ev.source_type, ev.ingest_channel or "http"))
@@ -913,6 +993,10 @@ def api_patch_setup(
             graph_enabled=body.graph_enabled,
             graph_window_minutes=body.graph_window_minutes,
             graph_min_history=body.graph_min_history,
+            graph_peer_limit=body.graph_peer_limit,
+            suppress_noise_in_queue=body.suppress_noise_in_queue,
+            llm_effort=body.llm_effort,
+            notify_min_risk_score=body.notify_min_risk_score,
             db=db,
         )
     except ValueError as exc:
@@ -940,7 +1024,11 @@ def api_alerts(
     mitre: str | None = Query(None, max_length=64),
     sla: str | None = Query(None, max_length=16),
     disposition: str | None = Query(None, max_length=32),
+    noise_hint: str | None = Query(None, max_length=32),
+    hide_noise: bool = Query(False),
+    min_risk_score: int | None = Query(None, ge=0, le=100),
     limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
     db: Session = Depends(get_db),
     principal: AuthPrincipal = Depends(require_perm("search")),
 ) -> list[AlertOut]:
@@ -963,21 +1051,38 @@ def api_alerts(
             status_code=400,
             detail=f"disposition must be one of: {', '.join(sorted(ALERT_DISPOSITIONS))}",
         )
+    nh = (noise_hint or "").strip().lower() or None
+    if nh and nh not in {"likely_noise", "likely_signal", "unclear"}:
+        raise HTTPException(
+            status_code=400,
+            detail="noise_hint must be one of: likely_noise, likely_signal, unclear",
+        )
     briefs = _rule_briefs()
-    fetch_limit = min(200, limit * 4) if sla_wanted else limit
-    stmt = (
-        select(Alert)
-        .where(Alert.tenant_id == principal.tenant_id)
-        .order_by(Alert.created_at.desc())
-        .limit(fetch_limit)
-    )
+    # Prefer DB filters; only over-fetch when SLA needs post-filter.
+    fetch_limit = min(200, limit * 2) if sla_wanted else limit
+    filters = [Alert.tenant_id == principal.tenant_id]
     if status:
-        stmt = stmt.where(Alert.status == status)
+        filters.append(Alert.status == status)
     if mitre and mitre.strip():
         safe_mitre = escape_like(mitre.strip())
-        stmt = stmt.where(Alert.mitre.ilike(f"%{safe_mitre}%", escape="\\"))
+        filters.append(Alert.mitre.ilike(f"%{safe_mitre}%", escape="\\"))
     if disp:
-        stmt = stmt.where(Alert.disposition == disp)
+        filters.append(Alert.disposition == disp)
+    if nh:
+        filters.append(Alert.noise_hint == nh)
+    if hide_noise:
+        filters.append(
+            or_(Alert.noise_hint.is_(None), Alert.noise_hint != "likely_noise")
+        )
+    if min_risk_score is not None:
+        filters.append(Alert.risk_score >= min_risk_score)
+    stmt = (
+        select(Alert)
+        .where(and_(*filters))
+        .order_by(Alert.created_at.desc())
+        .offset(0 if sla_wanted else offset)
+        .limit(fetch_limit if sla_wanted else limit)
+    )
     out = [
         alert_to_out(a, briefs, db=db, include_comments=False, include_audit=False)
         for a in db.scalars(stmt).all()
@@ -993,19 +1098,30 @@ def api_alerts(
                 },
                 sla_wanted,
             )
-        ][:limit]
+        ]
+        out = out[offset : offset + limit]
     return out
 
 
 @app.get("/api/alerts/queue", response_model=list[AlertOut])
 def api_alerts_queue(
     limit: int = Query(50, ge=1, le=100),
+    hide_noise: bool | None = Query(None),
     db: Session = Depends(get_db),
     principal: AuthPrincipal = Depends(require_perm("search")),
 ) -> list[AlertOut]:
+    from .models import AlertLink
     from .triage_brief import queue_sort_key
 
+    lab = get_lab_state()
+    suppress = (
+        bool(hide_noise)
+        if hide_noise is not None
+        else bool(getattr(lab, "suppress_noise_in_queue", False))
+    )
     briefs = _rule_briefs()
+    # Fetch a modest buffer for sort; avoid limit*3 under load when suppress filters.
+    fetch_n = min(150, max(limit * 2, limit + 20))
     stmt = (
         select(Alert)
         .where(
@@ -1015,12 +1131,67 @@ def api_alerts_queue(
             )
         )
         .order_by(Alert.created_at.asc())
-        .limit(min(200, limit * 3))
+        .limit(fetch_n)
     )
-    outs = [
-        alert_to_out(a, briefs, db=db, include_comments=False, include_audit=False)
-        for a in db.scalars(stmt).all()
-    ]
+    if suppress:
+        stmt = stmt.where(
+            or_(Alert.noise_hint.is_(None), Alert.noise_hint != "likely_noise")
+        )
+    rows = list(db.scalars(stmt).all())
+    # Batch cluster sizes + campaign_id (min id in connected component, score>=50).
+    cluster_map: dict[int, int] = {}
+    campaign_map: dict[int, int] = {}
+    if rows:
+        ids = [a.id for a in rows]
+        link_rows = db.execute(
+            select(AlertLink.src_alert_id, AlertLink.dst_alert_id).where(
+                and_(
+                    AlertLink.tenant_id == principal.tenant_id,
+                    AlertLink.score >= 50,
+                    or_(
+                        AlertLink.src_alert_id.in_(ids),
+                        AlertLink.dst_alert_id.in_(ids),
+                    ),
+                )
+            )
+        ).all()
+        neighbors: dict[int, set[int]] = {i: set() for i in ids}
+        for src, dst in link_rows:
+            if src in neighbors:
+                neighbors[src].add(int(dst))
+            if dst in neighbors:
+                neighbors[dst].add(int(src))
+        cluster_map = {i: len(neighbors[i]) for i in ids}
+        # Union-find style campaign = min id reachable in neighbor graph among queue set
+        parent: dict[int, int] = {i: i for i in ids}
+
+        def find(x: int) -> int:
+            while parent[x] != x:
+                parent[x] = parent[parent[x]]
+                x = parent[x]
+            return x
+
+        def union(a: int, b: int) -> None:
+            ra, rb = find(a), find(b)
+            if ra == rb:
+                return
+            if ra < rb:
+                parent[rb] = ra
+            else:
+                parent[ra] = rb
+
+        for i, nbrs in neighbors.items():
+            for j in nbrs:
+                if j in parent:
+                    union(i, j)
+        campaign_map = {i: find(i) for i in ids}
+
+    outs: list[AlertOut] = []
+    for a in rows:
+        out = alert_to_out(a, briefs, db=db, include_comments=False, include_audit=False)
+        out.cluster_size = cluster_map.get(a.id, 0)
+        out.campaign_id = campaign_map.get(a.id, a.id)
+        outs.append(out)
     outs.sort(key=queue_sort_key)
     return outs[:limit]
 
@@ -1028,6 +1199,8 @@ def api_alerts_queue(
 @app.get("/api/alerts/export.csv")
 def api_alerts_export_csv(
     status: str | None = None,
+    mitre: str | None = Query(None, max_length=64),
+    sla: str | None = Query(None, max_length=16),
     limit: int = Query(500, ge=1, le=500),
     db: Session = Depends(get_db),
     principal: AuthPrincipal = Depends(require_perm("search")),
@@ -1037,15 +1210,41 @@ def api_alerts_export_csv(
             status_code=400,
             detail=f"status must be one of: {', '.join(sorted(ALERT_STATUSES))}",
         )
+    sla_wanted = (sla or "").strip().lower() or None
+    if sla_wanted and sla_wanted not in {"breached", "at_risk", "met", "ok", "na"}:
+        raise HTTPException(
+            status_code=400,
+            detail="sla must be one of: breached, at_risk, met, ok, na",
+        )
+    fetch_limit = min(500, limit * 4) if sla_wanted else limit
     stmt = (
         select(Alert)
         .where(Alert.tenant_id == principal.tenant_id)
         .order_by(Alert.created_at.desc())
-        .limit(limit)
+        .limit(fetch_limit)
     )
     if status:
         stmt = stmt.where(Alert.status == status)
+    if mitre and mitre.strip():
+        safe_mitre = escape_like(mitre.strip())
+        stmt = stmt.where(Alert.mitre.ilike(f"%{safe_mitre}%", escape="\\"))
     alerts = list(db.scalars(stmt).all())
+    if sla_wanted:
+        briefs = _rule_briefs()
+        filtered: list[Alert] = []
+        for a in alerts:
+            out = alert_to_out(a, briefs, db=db, include_comments=False, include_audit=False)
+            if alert_matches_sla_filter(
+                {
+                    "sla_ack_status": out.sla_ack_status,
+                    "sla_close_status": out.sla_close_status,
+                },
+                sla_wanted,
+            ):
+                filtered.append(a)
+            if len(filtered) >= limit:
+                break
+        alerts = filtered
     csv_body = alerts_to_csv(alerts)
     filename = f"darkgreen-alerts{('-' + status) if status else ''}.csv"
     return Response(
@@ -1141,6 +1340,7 @@ def api_alert_copilot_suggest(
     principal: AuthPrincipal = Depends(require_perm("alerts_write")),
 ) -> CopilotSuggestOut:
     from .copilot import suggest_closure
+    from .models import CopilotAudit
     from .triage_brief import build_alert_brief
 
     alert = db.get(Alert, alert_id)
@@ -1154,8 +1354,120 @@ def api_alert_copilot_suggest(
         close_map=lab.sla_close_minutes,
         prior_days=int(lab.triage_prior_days or 30),
     )
-    suggestion = suggest_closure(brief)
+    suggestion = suggest_closure(
+        brief, db=db, tenant_id=principal.tenant_id
+    )
+    try:
+        db.add(
+            CopilotAudit(
+                tenant_id=principal.tenant_id,
+                alert_id=alert.id,
+                actor=principal.username or "analyst",
+                action="copilot_suggest",
+                source=suggestion.get("source"),
+                suggested_disposition=suggestion.get("suggested_disposition"),
+                llm_skipped=suggestion.get("llm_skipped"),
+                priority=suggestion.get("priority"),
+                noise_action=suggestion.get("noise_action"),
+            )
+        )
+        db.commit()
+    except Exception:
+        logger.exception("copilot audit write failed")
+        db.rollback()
     return CopilotSuggestOut(**suggestion, brief=TriageBriefOut(**brief))
+
+
+@app.post("/api/alerts/{alert_id}/copilot-feedback")
+def api_copilot_feedback(
+    alert_id: int,
+    body: CopilotFeedbackIn,
+    db: Session = Depends(get_db),
+    principal: AuthPrincipal = Depends(require_perm("alerts_write")),
+) -> dict[str, Any]:
+    from .models import CopilotFeedback
+
+    alert = db.get(Alert, alert_id)
+    if not alert or alert.tenant_id != principal.tenant_id:
+        raise HTTPException(status_code=404, detail="Alert not found")
+    db.add(
+        CopilotFeedback(
+            tenant_id=principal.tenant_id,
+            alert_id=alert.id,
+            actor=principal.username or "analyst",
+            useful=bool(body.useful),
+            rule_id=alert.rule_id,
+        )
+    )
+    db.commit()
+    return {"ok": True, "useful": bool(body.useful)}
+
+
+@app.post("/api/alerts/bulk-close", response_model=BulkCloseOut)
+def api_alerts_bulk_close(
+    body: BulkCloseIn,
+    request: Request,
+    db: Session = Depends(get_db),
+    principal: AuthPrincipal = Depends(require_perm("alerts_write")),
+) -> BulkCloseOut:
+    enforce_login_rate(request, db=db)  # soft abuse brake for bulk
+    from .schemas import ALERT_DISPOSITIONS
+
+    disp = (body.disposition or "").strip().lower()
+    if disp not in ALERT_DISPOSITIONS:
+        raise HTTPException(status_code=400, detail="invalid disposition")
+    note = (body.closure_note or "").strip()
+    if len(note) < 10:
+        raise HTTPException(status_code=400, detail="closure_note min 10 chars")
+    q = select(Alert).where(
+        and_(
+            Alert.tenant_id == principal.tenant_id,
+            Alert.status.in_(["open", "acked", "in_progress"]),
+        )
+    )
+    if body.alert_ids:
+        q = q.where(Alert.id.in_(body.alert_ids[: body.limit]))
+    elif (body.noise_hint or "").strip():
+        q = q.where(Alert.noise_hint == body.noise_hint.strip().lower())
+    else:
+        q = q.where(Alert.noise_hint == "likely_noise")
+    rows = list(db.scalars(q.order_by(Alert.created_at.asc()).limit(body.limit)).all())
+    closed_ids: list[int] = []
+    for alert in rows:
+        apply_alert_status(
+            db,
+            alert,
+            "closed",
+            actor=principal.username,
+            disposition=disp,
+            closure_note=note,
+        )
+        closed_ids.append(alert.id)
+    db.commit()
+    return BulkCloseOut(closed=len(closed_ids), ids=closed_ids)
+
+
+@app.post("/api/admin/rotate-sealed", response_model=RotateSealedOut)
+def api_rotate_sealed(
+    body: RotateSealedIn,
+    db: Session = Depends(get_db),
+    principal: AuthPrincipal = Depends(require_perm("setup")),
+) -> RotateSealedOut:
+    from .secret_crypto import reseal_with_new_secret
+
+    try:
+        n = reseal_with_new_secret(
+            db, old_secret=body.old_secret, new_secret=body.new_secret
+        )
+        db.commit()
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return RotateSealedOut(
+        resealed=n,
+        message=(
+            "Lab settings resealed. Set AUTH_SECRET to the new value and restart the API."
+        ),
+    )
 
 
 @app.get("/api/memory/stats", response_model=MemoryStatsOut)
@@ -1163,14 +1475,43 @@ def api_memory_stats(
     db: Session = Depends(get_db),
     principal: AuthPrincipal = Depends(require_perm("search")),
 ) -> MemoryStatsOut:
+    from .models import CopilotAudit
     from .rag_memory import memory_stats
 
     lab = get_lab_state()
     stats = memory_stats(db, tenant_id=principal.tenant_id)
+    llm_called = (
+        db.scalar(
+            select(func.count())
+            .select_from(CopilotAudit)
+            .where(
+                and_(
+                    CopilotAudit.tenant_id == principal.tenant_id,
+                    CopilotAudit.source == "llm_rag",
+                )
+            )
+        )
+        or 0
+    )
+    llm_skipped = (
+        db.scalar(
+            select(func.count())
+            .select_from(CopilotAudit)
+            .where(
+                and_(
+                    CopilotAudit.tenant_id == principal.tenant_id,
+                    CopilotAudit.llm_skipped.is_not(None),
+                )
+            )
+        )
+        or 0
+    )
     return MemoryStatsOut(
         **stats,
         rag_enabled=bool(getattr(lab, "rag_enabled", True)),
         rag_top_k=int(getattr(lab, "rag_top_k", 5) or 5),
+        llm_called=int(llm_called),
+        llm_skipped=int(llm_skipped),
     )
 
 

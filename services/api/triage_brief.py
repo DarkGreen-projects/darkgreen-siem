@@ -24,7 +24,11 @@ def _sample(alert: Alert) -> dict[str, Any]:
 
 
 def queue_sort_key(alert_out: Any) -> tuple:
-    """Lower tuple = higher priority for workbench queue."""
+    """Lower tuple = higher priority for workbench queue.
+
+    Order: SLA → signal bonus → cluster size (desc) → severity → age.
+    Noise and silence-like rules get an explicit malus.
+    """
     sev = (getattr(alert_out, "severity", None) or "medium").lower()
     noise = (getattr(alert_out, "noise_hint", None) or "unclear").lower()
     sla_ack = (getattr(alert_out, "sla_ack_status", None) or "na").lower()
@@ -32,9 +36,20 @@ def queue_sort_key(alert_out: Any) -> tuple:
     sla_best = min(_SLA_RANK.get(sla_ack, 4), _SLA_RANK.get(sla_close, 4))
     created = getattr(alert_out, "created_at", None) or datetime.now(timezone.utc)
     ts = created.timestamp() if hasattr(created, "timestamp") else 0.0
+    cluster = int(getattr(alert_out, "cluster_size", None) or 0)
+    # Larger clusters first → negate size for ascending sort
+    cluster_rank = -min(50, max(0, cluster))
+    rule_id = (getattr(alert_out, "rule_id", None) or "").lower()
+    silence_malus = 1 if rule_id.startswith("source-silent-") or "silence" in rule_id else 0
+    noise_rank = _NOISE_RANK.get(noise, 1)
+    if noise == "likely_noise":
+        noise_rank = 3  # stronger malus
+    elif noise == "likely_signal":
+        noise_rank = 0
     return (
         sla_best,
-        _NOISE_RANK.get(noise, 1),
+        noise_rank + silence_malus,
+        cluster_rank,
         _SEV_RANK.get(sev, 2),
         ts,
     )
@@ -93,6 +108,33 @@ def build_alert_brief(
     brief = (evidence.get("threat_brief") or "").strip()
     if brief:
         lines.append(f"Threat brief: {brief[:400]}")
+    playbook = (evidence.get("playbook") or "").strip()
+    if playbook:
+        lines.append(f"Playbook: {playbook[:400]}")
+    asset_context = None
+    try:
+        from .lab_assets import resolve_asset_context
+
+        asset_context = resolve_asset_context(
+            host=sample.get("host"),
+            user=sample.get("user"),
+        )
+        if asset_context:
+            bits = []
+            if asset_context.get("host"):
+                bits.append(
+                    f"host owner={asset_context['host'].get('owner')} "
+                    f"role={asset_context['host'].get('role')}"
+                )
+            if asset_context.get("user"):
+                bits.append(
+                    f"user owner={asset_context['user'].get('owner')} "
+                    f"role={asset_context['user'].get('role')}"
+                )
+            if bits:
+                lines.append("Asset: " + "; ".join(bits))
+    except Exception:
+        asset_context = None
     if similar:
         lines.append(
             f"Simili (ultimi {prior_days}g): {len(similar)} · FP/benign {fp_n} · TP {tp_n}"
@@ -173,6 +215,8 @@ def build_alert_brief(
         "risk_score": getattr(alert, "risk_score", None),
         "mitre": getattr(alert, "mitre", None),
         "threat_brief": brief or None,
+        "playbook": playbook or None,
+        "asset_context": asset_context,
         "cases": cases,
         "connected": connected,
         "fingerprint": fingerprint,

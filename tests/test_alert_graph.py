@@ -262,20 +262,11 @@ def test_copilot_filters_llm_related_to_allowed():
         llm_api_key="sk-test",
         llm_api_url="https://api.openai.com/v1/chat/completions",
     )
-    with patch("services.api.copilot.get_lab_state", return_value=state), patch(
-        "services.api.copilot.validate_egress_url",
-        create=True,
-    ), patch("httpx.Client") as client_cls:
-        client = MagicMock()
-        client.__enter__.return_value = client
-        client.__exit__.return_value = False
-        client.post.return_value = fake_resp
-        client_cls.return_value = client
-        with patch(
-            "services.api.url_safety.validate_egress_url",
-            return_value="https://api.openai.com/v1/chat/completions",
-        ):
-            out = suggest_closure(brief)
+    with (
+        patch("services.api.copilot.get_lab_state", return_value=state),
+        patch("services.api.url_safety.egress_post", return_value=fake_resp),
+    ):
+        out = suggest_closure(brief)
     assert out["available"] is True
     assert out["related_alert_ids"] == [5]
     assert 999 not in out["related_alert_ids"]

@@ -24,6 +24,7 @@ class Settings(BaseSettings):
     disable_openapi: bool = False
     allow_insecure_webhooks: bool = False
     egress_host_allowlist: str = ""
+    trust_x_forwarded_for: bool = False
     run_background_jobs: bool = True
     demo_username: str = "analyst"
     demo_password: str = "darkgreen"
@@ -92,6 +93,12 @@ def get_settings() -> Settings:
         }
     if os.getenv("EGRESS_HOST_ALLOWLIST"):
         data["egress_host_allowlist"] = os.environ["EGRESS_HOST_ALLOWLIST"]
+    if os.getenv("TRUST_X_FORWARDED_FOR"):
+        data["trust_x_forwarded_for"] = os.environ["TRUST_X_FORWARDED_FOR"].lower() in {
+            "1",
+            "true",
+            "yes",
+        }
     if os.getenv("RUN_BACKGROUND_JOBS"):
         data["run_background_jobs"] = os.environ["RUN_BACKGROUND_JOBS"].lower() in {
             "1",
@@ -165,6 +172,24 @@ WEAK_API_TOKENS = frozenset(
         "dg-lab-token-compose",
     }
 )
+WEAK_DEMO_PASSWORDS = frozenset(
+    {
+        "darkgreen",
+        "password",
+        "admin",
+        "changeme",
+        "change-me-demo-password",
+    }
+)
+WEAK_SYSLOG_SECRETS = frozenset(
+    {
+        "",
+        "dg-lab-syslog",
+        "changeme",
+        "secret",
+    }
+)
+WEAK_DB_PASSWORD_FRAGMENTS = frozenset({"siem:siem@", "postgres:postgres@", ":password@"})
 
 
 def secrets_are_weak(settings: Settings | None = None) -> bool:
@@ -174,17 +199,41 @@ def secrets_are_weak(settings: Settings | None = None) -> bool:
     ) in WEAK_API_TOKENS
 
 
+def _weak_lab_findings(settings: Settings) -> list[str]:
+    findings: list[str] = []
+    if (settings.auth_secret or "") in WEAK_AUTH_SECRETS:
+        findings.append("AUTH_SECRET")
+    if (settings.siem_api_token or "") in WEAK_API_TOKENS:
+        findings.append("SIEM_API_TOKEN")
+    if (settings.demo_password or "") in WEAK_DEMO_PASSWORDS:
+        findings.append("DEMO_PASSWORD")
+    syslog_sec = (getattr(settings, "syslog_shared_secret", None) or "").strip()
+    if syslog_sec in WEAK_SYSLOG_SECRETS:
+        findings.append("SYSLOG_SHARED_SECRET")
+    db_url = (getattr(settings, "database_url", None) or "").lower()
+    if any(frag in db_url for frag in WEAK_DB_PASSWORD_FRAGMENTS):
+        findings.append("DATABASE_URL_PASSWORD")
+    return findings
+
+
 def enforce_startup_secrets(settings: Settings | None = None) -> None:
     """Fail closed when STRICT_SECRETS and defaults remain; else warn."""
     import logging
 
     s = settings or get_settings()
-    if not secrets_are_weak(s):
-        return
-    msg = (
-        "Weak AUTH_SECRET / SIEM_API_TOKEN defaults detected. "
-        "Rotate before any non-lab exposure."
-    )
-    if s.strict_secrets:
-        raise RuntimeError(f"STRICT_SECRETS=true: {msg}")
-    logging.getLogger("darkgreen-siem").warning(msg)
+    log = logging.getLogger("darkgreen-siem")
+    findings = _weak_lab_findings(s)
+    if findings:
+        msg = (
+            "Weak lab secrets detected ("
+            + ", ".join(findings)
+            + "). Rotate before any non-lab exposure."
+        )
+        if s.strict_secrets:
+            raise RuntimeError(f"STRICT_SECRETS=true: {msg}")
+        log.warning(msg)
+    if getattr(s, "trust_x_forwarded_for", False):
+        log.warning(
+            "TRUST_X_FORWARDED_FOR=true: ensure a trusted reverse proxy sets "
+            "X-Real-IP / X-Forwarded-For; clients can otherwise spoof rate-limit keys."
+        )

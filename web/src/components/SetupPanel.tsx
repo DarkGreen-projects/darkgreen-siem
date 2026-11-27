@@ -42,6 +42,10 @@ export default function SetupPanel() {
   const [graphEnabled, setGraphEnabled] = useState(true);
   const [graphWindow, setGraphWindow] = useState(120);
   const [graphMinHistory, setGraphMinHistory] = useState(15);
+  const [suppressNoiseQueue, setSuppressNoiseQueue] = useState(false);
+  const [llmEffort, setLlmEffort] = useState("low");
+  const [graphPeerLimit, setGraphPeerLimit] = useState(40);
+  const [notifyMinRisk, setNotifyMinRisk] = useState<number | "">("");
   const [error, setError] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -74,6 +78,12 @@ export default function SetupPanel() {
         setGraphEnabled(s.graph_enabled !== false);
         setGraphWindow(s.graph_window_minutes || 120);
         setGraphMinHistory(s.graph_min_history ?? 15);
+        setSuppressNoiseQueue(!!s.suppress_noise_in_queue);
+        setLlmEffort(s.llm_effort || "low");
+        setGraphPeerLimit(s.graph_peer_limit || 40);
+        setNotifyMinRisk(
+          s.notify_min_risk_score == null ? "" : Number(s.notify_min_risk_score)
+        );
         setError(null);
         api
           .memoryStats()
@@ -109,6 +119,11 @@ export default function SetupPanel() {
         graph_enabled: graphEnabled,
         graph_window_minutes: graphWindow,
         graph_min_history: graphMinHistory,
+        suppress_noise_in_queue: suppressNoiseQueue,
+        llm_effort: llmEffort,
+        graph_peer_limit: graphPeerLimit,
+        notify_min_risk_score:
+          notifyMinRisk === "" ? undefined : Number(notifyMinRisk),
       };
       if (vtKey.trim()) payload.vt_api_key = vtKey.trim();
       if (abuseKey.trim()) payload.abuseipdb_api_key = abuseKey.trim();
@@ -134,6 +149,12 @@ export default function SetupPanel() {
       setGraphEnabled(s.graph_enabled !== false);
       setGraphWindow(s.graph_window_minutes || 120);
       setGraphMinHistory(s.graph_min_history ?? 15);
+      setSuppressNoiseQueue(!!s.suppress_noise_in_queue);
+      setLlmEffort(s.llm_effort || "low");
+      setGraphPeerLimit(s.graph_peer_limit || 40);
+      setNotifyMinRisk(
+        s.notify_min_risk_score == null ? "" : Number(s.notify_min_risk_score)
+      );
       setMsg("Impostazioni lab salvate (sessione API).");
       try {
         const st = await api.memoryStats();
@@ -171,6 +192,10 @@ export default function SetupPanel() {
   };
 
   const runPurge = async () => {
+    const ok = window.confirm(
+      "Eseguire il purge ora? Gli eventi oltre la retention verranno eliminati."
+    );
+    if (!ok) return;
     setBusy(true);
     setMsg(null);
     try {
@@ -365,6 +390,19 @@ export default function SetupPanel() {
               <option value="low">low</option>
             </select>
           </label>
+          <label>
+            Risk score minimo (opz.)
+            <input
+              type="number"
+              min={0}
+              max={100}
+              value={notifyMinRisk}
+              onChange={(e) =>
+                setNotifyMinRisk(e.target.value === "" ? "" : Number(e.target.value))
+              }
+              placeholder="vuoto = solo severity"
+            />
+          </label>
         </div>
 
         <h3 className="muted" style={{ marginTop: "1.25rem" }}>
@@ -418,6 +456,14 @@ export default function SetupPanel() {
               onChange={(e) => setTriageScoring(e.target.checked)}
             />
             Abilita scoring triage
+          </label>
+          <label className="setup-toggle">
+            <input
+              type="checkbox"
+              checked={suppressNoiseQueue}
+              onChange={(e) => setSuppressNoiseQueue(e.target.checked)}
+            />
+            Nascondi likely_noise dalla coda Turno
           </label>
           <label>
             Finestra priors (giorni)
@@ -532,6 +578,16 @@ export default function SetupPanel() {
               onChange={(e) => setGraphMinHistory(Number(e.target.value))}
             />
           </label>
+          <label>
+            Peer scan limit
+            <input
+              type="number"
+              min={10}
+              max={80}
+              value={graphPeerLimit}
+              onChange={(e) => setGraphPeerLimit(Number(e.target.value))}
+            />
+          </label>
         </div>
 
         <h3 className="muted" style={{ marginTop: "1.25rem" }}>
@@ -551,6 +607,13 @@ export default function SetupPanel() {
               onChange={(e) => setLlmEnabled(e.target.checked)}
             />
             Abilita Copilot LLM
+          </label>
+          <label>
+            Effort
+            <select value={llmEffort} onChange={(e) => setLlmEffort(e.target.value)}>
+              <option value="low">low (lab)</option>
+              <option value="high">high</option>
+            </select>
           </label>
           <label>
             Model

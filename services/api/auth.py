@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from typing import Annotated, Callable
 
 from fastapi import Depends, Header, HTTPException, Request
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -26,6 +26,14 @@ TOKEN_TTL_SEC = 12 * 60 * 60  # 12 hours
 class LoginRequest(BaseModel):
     username: str = Field(min_length=1, max_length=64)
     password: str = Field(min_length=1, max_length=128)
+
+    @field_validator("username")
+    @classmethod
+    def username_no_pipe(cls, value: str) -> str:
+        text = (value or "").strip()
+        if "|" in text:
+            raise ValueError("username must not contain '|'")
+        return text
 
 
 class LoginResponse(BaseModel):
@@ -69,6 +77,8 @@ def issue_user_token(
     tenant_id: str = "lab",
     ttl: int = TOKEN_TTL_SEC,
 ) -> tuple[str, int]:
+    if "|" in (username or "") or "|" in (role or "") or "|" in (tenant_id or ""):
+        raise ValueError("username/role/tenant_id must not contain '|'")
     exp = int(time.time()) + ttl
     # username|role|tenant_id|exp
     payload = f"{username}|{role}|{tenant_id}|{exp}".encode("utf-8")

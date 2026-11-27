@@ -12,10 +12,13 @@ from fastapi import HTTPException
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from services.api.auth import issue_user_token, require_auth, verify_user_token
+from pydantic import ValidationError
+
+from services.api.auth import LoginRequest, issue_user_token, require_auth, verify_user_token
 from services.api.config import Settings, enforce_startup_secrets, secrets_are_weak
+from services.api.copilot import _attach_related
 from services.api.input_limits import escape_like
-from services.api.rate_limit import enforce_login_rate, reset_limiters_for_tests
+from services.api.rate_limit import client_ip, enforce_login_rate, reset_limiters_for_tests
 from services.api.secret_crypto import ENC_PREFIX, seal, unseal
 from services.api.syslog_server import SyslogProtocol, strip_syslog_shared_secret
 from services.api.url_safety import UnsafeUrlError, validate_egress_url
@@ -38,6 +41,10 @@ def test_url_blocks_loopback_and_http():
             validate_egress_url("https://169.254.169.254/latest", purpose="notify")
         with pytest.raises(UnsafeUrlError):
             validate_egress_url("https://localhost/hook", purpose="LLM")
+        with pytest.raises(UnsafeUrlError):
+            validate_egress_url("https://100.64.1.1/hook", purpose="notify")
+        with pytest.raises(UnsafeUrlError):
+            validate_egress_url("https://100.100.100.200/latest", purpose="notify")
 
 
 def test_url_allows_https_public_when_resolves_public():
@@ -78,7 +85,7 @@ def test_fernet_seal_unseal_roundtrip():
 
 
 def test_syslog_shared_secret_accept_reject():
-    assert strip_syslog_shared_secret("hello", "") == "hello"
+    assert strip_syslog_shared_secret("hello", "") is None  # empty secret rejects all
     assert strip_syslog_shared_secret("sec msg", "sec") == "msg"
     assert strip_syslog_shared_secret("#dg-token=sec body", "sec") == "body"
     assert strip_syslog_shared_secret("wrong msg", "sec") is None
@@ -115,7 +122,15 @@ def test_strict_secrets_blocks_weak_defaults():
     assert secrets_are_weak(weak)
     with pytest.raises(RuntimeError):
         enforce_startup_secrets(weak)
-    ok = Settings(auth_secret="strong-enough-secret", siem_api_token="strong-token", strict_secrets=True)
+    ok = Settings(
+        auth_secret="strong-enough-secret",
+        siem_api_token="strong-token",
+        demo_password="strong-demo-pass-not-lab",
+        syslog_shared_secret="strong-syslog-secret-xyz",
+        database_url="postgresql+psycopg://siem:StrongDbPass99@localhost:5432/darkgreen_siem",
+        strict_secrets=True,
+        trust_x_forwarded_for=False,
+    )
     enforce_startup_secrets(ok)
 
 
@@ -161,3 +176,46 @@ def test_mask_webhook_no_tail():
 
     assert mask_secret("https://hooks.example/abc", reveal_tail=False) == "****"
     assert mask_secret("abcd1234", reveal_tail=True) == "****1234"
+
+
+def test_client_ip_prefers_x_real_ip_over_xff():
+    req = MagicMock()
+    req.headers = {
+        "x-forwarded-for": "203.0.113.9",
+        "x-real-ip": "198.51.100.10",
+    }
+    req.client = MagicMock()
+    req.client.host = "10.0.0.1"
+    with patch("services.api.rate_limit.get_settings") as gs:
+        gs.return_value = Settings(trust_x_forwarded_for=False)
+        assert client_ip(req) == "198.51.100.10"
+
+
+def test_client_ip_ignores_xff_by_default():
+    req = MagicMock()
+    req.headers = {"x-forwarded-for": "203.0.113.9"}
+    req.client = MagicMock()
+    req.client.host = "10.0.0.1"
+    with patch("services.api.rate_limit.get_settings") as gs:
+        gs.return_value = Settings(trust_x_forwarded_for=False)
+        assert client_ip(req) == "10.0.0.1"
+
+
+def test_login_username_rejects_pipe():
+    with pytest.raises(ValidationError):
+        LoginRequest(username="bad|admin", password="x")
+
+
+def test_issue_token_rejects_pipe_username():
+    s = Settings(auth_secret="test-secret-lab")
+    with pytest.raises(ValueError):
+        issue_user_token(s, "bad|user", role="admin", tenant_id="lab")
+
+
+def test_copilot_attach_related_ignores_bad_ids():
+    brief = {
+        "connected": [{"id": 10, "score": 80, "relation": "shared_ioc", "direction": "in"}],
+        "cases": [],
+    }
+    out = _attach_related({"related_alert_ids": ["not-an-int", 10, None]}, brief)
+    assert out["related_alert_ids"] == [10]

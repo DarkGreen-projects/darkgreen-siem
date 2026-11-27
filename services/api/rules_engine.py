@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from collections import Counter
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -8,6 +9,8 @@ from typing import Any
 
 from sqlalchemy import and_, func, select
 from sqlalchemy.orm import Session
+
+logger = logging.getLogger("darkgreen-siem.rules")
 
 from .enrich_providers import keys_matching_enrich
 from .lab_settings import get_lab_state
@@ -169,12 +172,21 @@ def _finalize_alert(
     )
     if existing is not None:
         merged = _merge_alert(existing, evidence)
+        from .lab_settings import get_lab_state
+        from .triage_score import apply_score_to_alert
+
+        lab = get_lab_state()
+        if getattr(lab, "triage_scoring_enabled", True):
+            apply_score_to_alert(
+                db,
+                merged,
+                days=int(getattr(lab, "triage_prior_days", 30) or 30),
+                enabled=True,
+            )
         db.add(merged)
         try:
             from .alert_graph import link_alert
-            from .lab_settings import get_lab_state
 
-            lab = get_lab_state()
             if getattr(lab, "graph_enabled", True):
                 link_alert(db, merged)
         except Exception:
@@ -228,6 +240,7 @@ def evaluate_match_rule(
         return None, False
     sample = hits[0]
     brief = (rule.get("threat_brief") or "").strip() or None
+    playbook = (rule.get("playbook") or "").strip() or None
     alert = Alert(
         tenant_id=tenant_id,
         rule_id=rule["id"],
@@ -242,6 +255,7 @@ def evaluate_match_rule(
             "occurrences": 1,
             "event_ids": [getattr(h, "id", None) for h in hits[:10] if getattr(h, "id", None)],
             "threat_brief": brief,
+            "playbook": playbook,
             "sample": {
                 "id": getattr(sample, "id", None),
                 "user": sample.user,
@@ -296,6 +310,17 @@ def evaluate_threshold_rule(
         clauses = [Event.timestamp >= since, Event.tenant_id == tenant_id]
         for key, expected in filters.items():
             if key.startswith("labels."):
+                label_key = key.split(".", 1)[1]
+                if not label_key:
+                    continue
+                # JSONB path must match in-memory _match_filters (do not skip).
+                label_col = Event.labels[label_key].as_string()
+                if isinstance(expected, list):
+                    clauses.append(
+                        func.lower(label_col).in_([str(x).lower() for x in expected])
+                    )
+                else:
+                    clauses.append(func.lower(label_col) == str(expected).lower())
                 continue
             field = getattr(Event, key, None)
             if field is None:
@@ -316,6 +341,7 @@ def evaluate_threshold_rule(
         top_key, top_count = rows[0]
 
     brief = (rule.get("threat_brief") or "").strip() or None
+    playbook = (rule.get("playbook") or "").strip() or None
     alert = Alert(
         tenant_id=tenant_id,
         rule_id=rule["id"],
@@ -334,6 +360,7 @@ def evaluate_threshold_rule(
             "count": int(top_count),
             "occurrences": 1,
             "threat_brief": brief,
+            "playbook": playbook,
             "sample": {
                 "src_ip": str(top_key) if group_by == "src_ip" else None,
                 "key": str(top_key),
@@ -452,6 +479,7 @@ def evaluate_correlation_rule(
 
     top_key = max(shared, key=lambda k: step_counts[0].get(k, 0))
     brief = (rule.get("threat_brief") or "").strip() or None
+    playbook = (rule.get("playbook") or "").strip() or None
     step_summary = []
     for i, step in enumerate(steps):
         if step.get("enrich"):
@@ -494,6 +522,7 @@ def evaluate_correlation_rule(
             "window_minutes": window,
             "occurrences": 1,
             "threat_brief": brief,
+            "playbook": playbook,
             "sample": {
                 "src_ip": sample_ev.src_ip if sample_ev else (top_key if join_on == "src_ip" else None),
                 "dst_ip": sample_ev.dst_ip if sample_ev else None,
@@ -526,12 +555,24 @@ def run_rules(db: Session, rules_dir: str | Path) -> list[Alert]:
             if not rule.get("enabled", True):
                 continue
             rtype = (rule.get("type") or "match").lower()
-            if rtype == "threshold":
-                alert, is_new = evaluate_threshold_rule(db, rule, tenant_id=tenant_id)
-            elif rtype == "correlation":
-                alert, is_new = evaluate_correlation_rule(db, rule, tenant_id=tenant_id)
-            else:
-                alert, is_new = evaluate_match_rule(db, rule, tenant_id=tenant_id)
+            try:
+                if rtype == "threshold":
+                    alert, is_new = evaluate_threshold_rule(db, rule, tenant_id=tenant_id)
+                elif rtype == "correlation":
+                    alert, is_new = evaluate_correlation_rule(db, rule, tenant_id=tenant_id)
+                else:
+                    alert, is_new = evaluate_match_rule(db, rule, tenant_id=tenant_id)
+            except Exception:
+                logger.exception(
+                    "rule evaluation failed id=%s tenant=%s",
+                    rule.get("id"),
+                    tenant_id,
+                )
+                try:
+                    db.rollback()
+                except Exception:
+                    pass
+                continue
             if alert is None:
                 continue
             touched.append(alert)

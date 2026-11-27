@@ -84,6 +84,49 @@ _ALTERS = (
     """,
     "CREATE UNIQUE INDEX IF NOT EXISTS uq_alert_links_src_dst_rel ON alert_links (src_alert_id, dst_alert_id, relation)",
     "CREATE INDEX IF NOT EXISTS ix_alert_links_tenant ON alert_links (tenant_id, created_at)",
+    "CREATE INDEX IF NOT EXISTS ix_alerts_tenant_status_created ON alerts (tenant_id, status, created_at DESC)",
+    "CREATE INDEX IF NOT EXISTS ix_alerts_tenant_rule_status ON alerts (tenant_id, rule_id, status)",
+    "CREATE INDEX IF NOT EXISTS ix_alerts_tenant_noise_hint ON alerts (tenant_id, noise_hint)",
+    "ALTER TABLE alerts ADD COLUMN IF NOT EXISTS fingerprint_hash VARCHAR(64)",
+    "CREATE INDEX IF NOT EXISTS ix_alerts_tenant_fingerprint ON alerts (tenant_id, fingerprint_hash)",
+    """
+    CREATE TABLE IF NOT EXISTS rate_buckets (
+        bucket_key VARCHAR(256) PRIMARY KEY,
+        tenant_id VARCHAR(64) NOT NULL DEFAULT 'lab',
+        window_id BIGINT DEFAULT 0,
+        count INTEGER DEFAULT 0
+    )
+    """,
+    "CREATE INDEX IF NOT EXISTS ix_rate_buckets_tenant ON rate_buckets (tenant_id)",
+    """
+    CREATE TABLE IF NOT EXISTS copilot_audits (
+        id BIGSERIAL PRIMARY KEY,
+        tenant_id VARCHAR(64) NOT NULL DEFAULT 'lab',
+        alert_id BIGINT NOT NULL,
+        actor VARCHAR(128) NOT NULL DEFAULT 'analyst',
+        action VARCHAR(32) NOT NULL DEFAULT 'copilot_suggest',
+        source VARCHAR(32),
+        suggested_disposition VARCHAR(32),
+        llm_skipped VARCHAR(64),
+        priority VARCHAR(8),
+        noise_action VARCHAR(32),
+        created_at TIMESTAMPTZ DEFAULT NOW()
+    )
+    """,
+    "CREATE INDEX IF NOT EXISTS ix_copilot_audits_alert ON copilot_audits (alert_id, created_at)",
+    "CREATE INDEX IF NOT EXISTS ix_copilot_audits_tenant ON copilot_audits (tenant_id, created_at)",
+    """
+    CREATE TABLE IF NOT EXISTS copilot_feedback (
+        id BIGSERIAL PRIMARY KEY,
+        tenant_id VARCHAR(64) NOT NULL DEFAULT 'lab',
+        alert_id BIGINT NOT NULL,
+        actor VARCHAR(128) NOT NULL DEFAULT 'analyst',
+        useful BOOLEAN NOT NULL DEFAULT TRUE,
+        rule_id VARCHAR(128),
+        created_at TIMESTAMPTZ DEFAULT NOW()
+    )
+    """,
+    "CREATE INDEX IF NOT EXISTS ix_copilot_feedback_rule ON copilot_feedback (tenant_id, rule_id)",
 )
 
 

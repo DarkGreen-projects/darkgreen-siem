@@ -56,6 +56,9 @@ export type Alert = {
   closed_by?: string | null;
   risk_score?: number | null;
   noise_hint?: string | null;
+  cluster_size?: number | null;
+  campaign_id?: number | null;
+  fingerprint_hash?: string | null;
   sla_ack_status?: string | null;
   sla_ack_target_minutes?: number | null;
   sla_ack_due_at?: string | null;
@@ -143,6 +146,8 @@ export type TriageBrief = {
   risk_score?: number | null;
   mitre?: string | null;
   threat_brief?: string | null;
+  playbook?: string | null;
+  asset_context?: Record<string, unknown> | null;
   cases?: MemoryCase[];
   connected?: ConnectedAlert[];
   fingerprint?: Record<string, unknown>;
@@ -160,6 +165,9 @@ export type CopilotSuggest = {
   related_alert_ids?: number[];
   relation_hint?: string | null;
   brief?: TriageBrief | null;
+  priority?: string | null;
+  noise_action?: string | null;
+  llm_skipped?: string | null;
 };
 
 export type MemoryStats = {
@@ -169,6 +177,8 @@ export type MemoryStats = {
   last_closed_at?: string | null;
   rag_enabled: boolean;
   rag_top_k: number;
+  llm_called?: number;
+  llm_skipped?: number;
 };
 
 export type VtEnrich = {
@@ -302,6 +312,10 @@ export type LabSetup = {
   graph_enabled?: boolean;
   graph_window_minutes?: number;
   graph_min_history?: number;
+  graph_peer_limit?: number;
+  suppress_noise_in_queue?: boolean;
+  llm_effort?: string;
+  notify_min_risk_score?: number | null;
 };
 
 export type DryRunHit = {
@@ -353,7 +367,14 @@ export function getStoredExpiresAt(): number | null {
 
 export function isSessionExpired(): boolean {
   const exp = getStoredExpiresAt();
-  if (exp == null) return false;
+  if (exp == null) {
+    // Legacy sessions without EXP_KEY: force re-login if a token is still stored.
+    try {
+      return !!localStorage.getItem(TOKEN_KEY);
+    } catch {
+      return true;
+    }
+  }
   return Math.floor(Date.now() / 1000) >= exp;
 }
 
@@ -542,16 +563,34 @@ export const api = {
     if (!res.ok) await ruleMutationError(res);
     return res.json() as Promise<Rule>;
   },
-  alerts: (opts?: { status?: string; mitre?: string; sla?: string; disposition?: string }) => {
+  alerts: (opts?: {
+    status?: string;
+    mitre?: string;
+    sla?: string;
+    disposition?: string;
+    hide_noise?: boolean;
+    noise_hint?: string;
+    limit?: number;
+    offset?: number;
+  }) => {
     const sp = new URLSearchParams();
     if (opts?.status) sp.set("status", opts.status);
     if (opts?.mitre) sp.set("mitre", opts.mitre);
     if (opts?.sla) sp.set("sla", opts.sla);
     if (opts?.disposition) sp.set("disposition", opts.disposition);
+    if (opts?.hide_noise) sp.set("hide_noise", "true");
+    if (opts?.noise_hint) sp.set("noise_hint", opts.noise_hint);
+    if (opts?.limit != null) sp.set("limit", String(opts.limit));
+    if (opts?.offset != null) sp.set("offset", String(opts.offset));
     const q = sp.toString();
     return getJson<Alert[]>(q ? `/api/alerts?${q}` : "/api/alerts");
   },
-  alertQueue: (limit = 50) => getJson<Alert[]>(`/api/alerts/queue?limit=${limit}`),
+  alertQueue: (limit = 50, opts?: { hide_noise?: boolean }) => {
+    const sp = new URLSearchParams();
+    sp.set("limit", String(limit));
+    if (opts?.hide_noise) sp.set("hide_noise", "true");
+    return getJson<Alert[]>(`/api/alerts/queue?${sp.toString()}`);
+  },
   getAlert: (id: number) => getJson<Alert>(`/api/alerts/${id}`),
   similarAlerts: (id: number) => getJson<SimilarAlert[]>(`/api/alerts/${id}/similar`),
   alertBrief: (id: number) => getJson<TriageBrief>(`/api/alerts/${id}/brief`),
@@ -562,6 +601,28 @@ export const api = {
       headers: authHeaders(),
     });
     return handleRes<CopilotSuggest>(res);
+  },
+  copilotFeedback: async (id: number, useful: boolean) => {
+    const res = await fetch(`/api/alerts/${id}/copilot-feedback`, {
+      method: "POST",
+      headers: authHeaders({ "Content-Type": "application/json" }),
+      body: JSON.stringify({ useful }),
+    });
+    return handleRes<{ ok: boolean; useful: boolean }>(res);
+  },
+  bulkCloseAlerts: async (payload: {
+    alert_ids?: number[];
+    noise_hint?: string;
+    disposition?: string;
+    closure_note?: string;
+    limit?: number;
+  }) => {
+    const res = await fetch("/api/alerts/bulk-close", {
+      method: "POST",
+      headers: authHeaders({ "Content-Type": "application/json" }),
+      body: JSON.stringify(payload),
+    });
+    return handleRes<{ closed: number; ids: number[] }>(res);
   },
   memoryStats: () => getJson<MemoryStats>("/api/memory/stats"),
   memoryExport: async (limit = 500) => {
@@ -613,11 +674,12 @@ export const api = {
     const res = await fetch(`/api/alerts/${id}/ack`, { method: "POST", headers: authHeaders() });
     return handleRes<Alert>(res);
   },
-  addComment: async (id: number, body: string, author = "analyst") => {
+  addComment: async (id: number, body: string) => {
     const res = await fetch(`/api/alerts/${id}/comments`, {
       method: "POST",
       headers: authHeaders({ "Content-Type": "application/json" }),
-      body: JSON.stringify({ body, author }),
+      // Author comes from the authenticated principal server-side.
+      body: JSON.stringify({ body }),
     });
     return handleRes<AlertComment>(res);
   },
@@ -658,6 +720,10 @@ export const api = {
     graph_enabled?: boolean;
     graph_window_minutes?: number;
     graph_min_history?: number;
+    graph_peer_limit?: number;
+    suppress_noise_in_queue?: boolean;
+    llm_effort?: string;
+    notify_min_risk_score?: number | null;
   }) => {
     const res = await fetch("/api/setup", {
       method: "PATCH",
@@ -670,10 +736,13 @@ export const api = {
     const res = await fetch("/api/admin/purge", { method: "POST", headers: authHeaders() });
     return handleRes<PurgeResult>(res);
   },
-  exportAlertsCsv: async (status?: string) => {
-    const url = status
-      ? `/api/alerts/export.csv?status=${encodeURIComponent(status)}`
-      : "/api/alerts/export.csv";
+  exportAlertsCsv: async (opts?: { status?: string; mitre?: string; sla?: string }) => {
+    const params = new URLSearchParams();
+    if (opts?.status) params.set("status", opts.status);
+    if (opts?.mitre) params.set("mitre", opts.mitre);
+    if (opts?.sla) params.set("sla", opts.sla);
+    const qs = params.toString();
+    const url = qs ? `/api/alerts/export.csv?${qs}` : "/api/alerts/export.csv";
     const res = await fetch(url, { headers: authHeaders() });
     if (res.status === 401) {
       clearAuthSession();
@@ -684,7 +753,7 @@ export const api = {
     const a = document.createElement("a");
     const href = URL.createObjectURL(blob);
     a.href = href;
-    a.download = status ? `darkgreen-alerts-${status}.csv` : "darkgreen-alerts.csv";
+    a.download = opts?.status ? `darkgreen-alerts-${opts.status}.csv` : "darkgreen-alerts.csv";
     a.click();
     URL.revokeObjectURL(href);
   },

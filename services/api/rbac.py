@@ -20,7 +20,7 @@ PERMS: dict[str, frozenset[str]] = {
 }
 
 
-def hash_password(password: str, *, iterations: int = 120_000) -> str:
+def hash_password(password: str, *, iterations: int = 600_000) -> str:
     salt = secrets.token_hex(16)
     dk = hashlib.pbkdf2_hmac(
         "sha256", password.encode("utf-8"), salt.encode("utf-8"), iterations

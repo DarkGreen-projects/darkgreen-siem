@@ -1,0 +1,32 @@
+id: spray-success-process
+name: Spray then success then suspicious process
+title: Catena spray → logon success → process sospetto
+description: >
+  Correlazione MITRE-oriented: burst login_failed, poi login_success dallo stesso
+  src_ip, poi processo sospetto Cynet sullo stesso host/user window.
+threat_brief: >
+  Possibile account takeover: spray, accesso riuscito, esecuzione. Verifica utente,
+  host, hash processo e sessioni parallele. Controlla MFA e reset password.
+playbook: >
+  1) Conferma spray e success sullo stesso IP. 2) Pivot host/user. 3) Isola host se
+  hash malware. 4) Reset credenziali. 5) Chiudi come TP o FP con nota.
+type: correlation
+severity: critical
+enabled: true
+mitre: T1110,T1078,T1059
+window_minutes: 60
+cooldown_minutes: 90
+join_on: src_ip
+steps:
+  - match:
+      source_type: windows
+      action: login_failed
+    min_count: 5
+  - match:
+      source_type: windows
+      action: login_success
+    min_count: 1
+  - match:
+      source_type: siem_export
+      labels.category: execution
+    min_count: 1

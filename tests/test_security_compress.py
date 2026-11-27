@@ -44,10 +44,10 @@ def test_normalized_to_row_compresses():
 
 def test_syslog_drops_oversized():
     seen: list[str] = []
-    proto = SyslogProtocol(lambda t, h: seen.append(t))
+    proto = SyslogProtocol(lambda t, h: seen.append(t), shared_secret="labsecret")
     proto.datagram_received(b"x" * (MAX_SYSLOG_BYTES + 10), ("203.0.113.1", 514))
     assert seen == []
-    proto.datagram_received(b"ok-line srcip=1.2.3.4", ("203.0.113.1", 514))
+    proto.datagram_received(b"labsecret ok-line srcip=1.2.3.4", ("203.0.113.1", 514))
     assert seen == ["ok-line srcip=1.2.3.4"]
 
 

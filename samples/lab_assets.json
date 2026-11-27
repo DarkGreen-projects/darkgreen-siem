@@ -1,0 +1,15 @@
+{
+  "hosts": {
+    "win-dc01.lab.local": {"owner": "IT Ops", "role": "domain-controller", "criticality": "high"},
+    "win-ws42.lab.local": {"owner": "Helpdesk", "role": "workstation", "criticality": "medium"},
+    "fw-edge-01": {"owner": "Network", "role": "firewall", "criticality": "high"},
+    "app-api-01": {"owner": "AppSec", "role": "application", "criticality": "high"}
+  },
+  "users": {
+    "j.doe": {"owner": "HR", "role": "employee"},
+    "a.admin": {"owner": "IT Ops", "role": "admin"},
+    "svc.backup": {"owner": "IT Ops", "role": "service"},
+    "r.rossi": {"owner": "Finance", "role": "employee"},
+    "ext.vendor": {"owner": "Procurement", "role": "vendor"}
+  }
+}

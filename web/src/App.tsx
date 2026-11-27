@@ -49,7 +49,8 @@ export default function App() {
         if (tok) setAuthSession(tok, me.username, me.role, me.tenant_id);
       })
       .catch((e) => {
-        if (e instanceof AuthError || (e as Error).message) {
+        // Only clear session on auth failure; keep token on transient 5xx/network errors.
+        if (e instanceof AuthError) {
           clearAuthSession();
           if (alive) {
             setUsername(null);

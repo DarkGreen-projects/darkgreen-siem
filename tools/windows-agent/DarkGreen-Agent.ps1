@@ -4,6 +4,7 @@
 param(
   [string]$SiemUrl = $env:SIEM_URL,
   [string]$Token = $env:SIEM_API_TOKEN,
+  [string]$ConfigPath = "",
   [int]$IntervalSec = 60,
   [int]$LookbackMinutes = 5,
   [switch]$Once
@@ -11,12 +12,38 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+function Read-AgentConfig([string]$Path) {
+  if (-not $Path -or -not (Test-Path $Path)) { return @{ Url = ""; Token = "" } }
+  $url = ""
+  $tok = ""
+  Get-Content -Path $Path -ErrorAction Stop | ForEach-Object {
+    $line = $_.Trim()
+    if (-not $line -or $line.StartsWith("#")) { return }
+    $idx = $line.IndexOf("=")
+    if ($idx -lt 1) { return }
+    $key = $line.Substring(0, $idx).Trim()
+    $val = $line.Substring($idx + 1).Trim()
+    if ($key -eq "SIEM_URL") { $url = $val }
+    elseif ($key -eq "SIEM_API_TOKEN") { $tok = $val }
+  }
+  return @{ Url = $url; Token = $tok }
+}
+
+if ($ConfigPath) {
+  $cfg = Read-AgentConfig $ConfigPath
+  if ($cfg.Url -and -not $SiemUrl) { $SiemUrl = $cfg.Url }
+  if ($cfg.Token -and -not $Token) { $Token = $cfg.Token }
+}
+
 if (-not $SiemUrl) { $SiemUrl = Read-Host "SIEM API URL" }
 if (-not $Token) {
   $secure = Read-Host "Bearer token" -AsSecureString
-  $Token = [Runtime.InteropServices.Marshal]::PtrToStringAuto(
-    [Runtime.InteropServices.Marshal]::SecureStringToBSTR($secure)
-  )
+  $bstr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($secure)
+  try {
+    $Token = [Runtime.InteropServices.Marshal]::PtrToStringAuto($bstr)
+  } finally {
+    [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstr)
+  }
 }
 $SiemUrl = $SiemUrl.TrimEnd("/")
 $stateFile = Join-Path $PSScriptRoot ".agent-last.json"

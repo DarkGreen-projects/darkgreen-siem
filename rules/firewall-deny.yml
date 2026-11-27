@@ -6,11 +6,14 @@ threat_brief: >
   A firewall deny from an external address can be reconnaissance, an exploit
   attempt, or misconfigured outbound traffic. Review destination port/service,
   volume of similar denies, and whether the same src_ip appears in auth failures.
+playbook: >
+  1) Conta deny simili. 2) Controlla porta/servizio. 3) Cerca auth failures dallo
+  stesso src_ip. 4) Se scanner noto chiudi FP con nota; altrimenti investiga.
 type: match
 severity: medium
 enabled: true
 window_minutes: 30
-cooldown_minutes: 20
+cooldown_minutes: 45
 match:
   source_type: firewall
   action: deny

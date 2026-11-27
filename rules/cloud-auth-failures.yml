@@ -12,7 +12,7 @@ enabled: true
 window_minutes: 15
 threshold: 3
 group_by: user
-cooldown_minutes: 15
+cooldown_minutes: 40
 match:
   source_type: cloud_auth
   action: login_failed

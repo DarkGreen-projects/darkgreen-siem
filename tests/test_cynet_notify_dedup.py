@@ -189,22 +189,14 @@ def test_notify_slack_payload_mocked():
         notify_format="slack",
         notify_min_severity="high",
     )
+    fake_resp = MagicMock(status_code=200)
     with (
         patch("services.api.notify.get_lab_state", return_value=state),
-        patch(
-            "services.api.url_safety.validate_egress_url",
-            side_effect=lambda u, purpose="egress": u,
-        ),
-        patch("services.api.notify.httpx.Client") as client_cls,
+        patch("services.api.url_safety.egress_post", return_value=fake_resp) as post,
     ):
-        client = MagicMock()
-        client.__enter__.return_value = client
-        client.__exit__.return_value = False
-        client.post.return_value = MagicMock(status_code=200, raise_for_status=MagicMock())
-        client_cls.return_value = client
         assert notify_alert_opened(alert) is True
-        assert client.post.called
-        body = client.post.call_args.kwargs.get("json") or client.post.call_args[1].get("json")
+        assert post.called
+        body = post.call_args.kwargs.get("json")
         assert "text" in body
         assert "Malware" in body["text"]
 

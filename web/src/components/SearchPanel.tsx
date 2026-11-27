@@ -188,15 +188,16 @@ export default function SearchPanel({
   };
 
   const applySaved = (item: SavedQuery) => {
+    const st = item.status || "";
     setQ(item.q);
     setSourceType(item.source_type);
     setSeverity(item.severity);
-    setStatus("");
+    setStatus(st);
     void runSearch({
       q: item.q,
       source_type: item.source_type,
       severity: item.severity,
-      status: "",
+      status: st,
     });
   };
 
@@ -209,6 +210,7 @@ export default function SearchPanel({
         q,
         source_type: sourceType,
         severity,
+        status,
       })
     );
     setSaveName("");
@@ -378,7 +380,9 @@ export default function SearchPanel({
       {hasSearched && (
         <div className="panel search-results-toolbar">
           <p className="muted" style={{ margin: 0 }}>
-            Risultati: {total} evento{total === 1 ? "" : "i"}
+            Risultati: {total === 1 ? "1 evento" : `${total} eventi`}
+            {events.length > 0 && events.length < total ? ` (tabella max ${events.length})` : ""}
+            {events.length >= 100 ? " (mostrati max 100)" : ""}
             {alertHits.length > 0 ? ` · ${alertHits.length} alert` : ""}
           </p>
           <button
@@ -398,7 +402,7 @@ export default function SearchPanel({
             Alert corrispondenti ({alertHits.length})
           </h3>
           <p className="muted">
-            Corrispondenze su titolo, descrizione o commenti — clicca per aprire.
+            Corrispondenze su titolo, descrizione o commenti - clicca per aprire.
           </p>
           <div className="list-block">
             {alertHits.map((hit) => (
@@ -430,7 +434,8 @@ export default function SearchPanel({
 
       <div className="panel">
         <p className="muted">
-          {total} evento{total === 1 ? "" : "i"} trovato{total === 1 ? "" : "i"}
+          {total === 1 ? "1 evento trovato" : `${total} eventi trovati`}
+          {events.length >= 100 ? " (tabella max 100)" : ""}
         </p>
         <table>
           <thead>

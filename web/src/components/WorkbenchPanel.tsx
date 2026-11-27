@@ -45,15 +45,22 @@ export default function WorkbenchPanel({ onPivotSearch }: Props) {
   const [closureNote, setClosureNote] = useState("");
   const [checks, setChecks] = useState<Record<string, boolean>>({});
   const [copilotMsg, setCopilotMsg] = useState<string | null>(null);
+  const [hideNoise, setHideNoise] = useState(true);
+  const [collapsedCampaigns, setCollapsedCampaigns] = useState<Record<number, boolean>>({});
+  const [lastSuggest, setLastSuggest] = useState<{
+    priority?: string | null;
+    source?: string | null;
+    noise_action?: string | null;
+  } | null>(null);
 
   const refresh = useCallback(async () => {
-    const q = await api.alertQueue(50);
+    const q = await api.alertQueue(50, { hide_noise: hideNoise || undefined });
     setQueue(q);
     setSelectedId((prev) => {
       if (prev && q.some((a) => a.id === prev)) return prev;
       return q[0]?.id ?? null;
     });
-  }, []);
+  }, [hideNoise]);
 
   useEffect(() => {
     let alive = true;
@@ -150,11 +157,17 @@ export default function WorkbenchPanel({ onPivotSearch }: Props) {
     setCopilotMsg(null);
     try {
       const res = await api.copilotSuggest(selected.id);
+      setLastSuggest({
+        priority: res.priority,
+        source: res.source,
+        noise_action: res.noise_action,
+      });
       if (res.available && res.suggested_disposition) {
         setDisposition(res.suggested_disposition as AlertDisposition);
         if (res.suggested_note) setClosureNote(res.suggested_note);
         const src = res.source ? `[${res.source}] ` : "";
-        setCopilotMsg(`${src}${res.rationale || "Suggerimento applicato"}`);
+        const pri = res.priority ? ` ${res.priority}` : "";
+        setCopilotMsg(`${src}${pri} ${res.rationale || "Suggerimento applicato"}`.trim());
         if (res.brief?.cases) setBrief(res.brief);
         setCloseOpen(true);
       } else {
@@ -166,6 +179,31 @@ export default function WorkbenchPanel({ onPivotSearch }: Props) {
       setBusy(false);
     }
   };
+
+  const sendFeedback = async (useful: boolean) => {
+    if (!selected) return;
+    try {
+      await api.copilotFeedback(selected.id, useful);
+      setCopilotMsg((m) => `${m || ""} · feedback ${useful ? "utile" : "non utile"}`);
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  };
+
+  const campaignGroups = useMemo(() => {
+    const map = new Map<number, Alert[]>();
+    for (const a of queue) {
+      const cid = a.campaign_id || a.id;
+      const list = map.get(cid) || [];
+      list.push(a);
+      map.set(cid, list);
+    }
+    return Array.from(map.entries()).sort((a, b) => {
+      const aMin = Math.min(...a[1].map((x) => x.id));
+      const bMin = Math.min(...b[1].map((x) => x.id));
+      return aMin - bMin;
+    });
+  }, [queue]);
 
   useTriageHotkeys({
     enabled: true,
@@ -190,36 +228,72 @@ export default function WorkbenchPanel({ onPivotSearch }: Props) {
       <div className="workbench-queue panel">
         <div className="row" style={{ alignItems: "center", marginBottom: "0.5rem" }}>
           <h3 style={{ margin: 0, flex: 1 }}>Coda turno</h3>
+          <label className="setup-toggle" style={{ fontSize: "0.8rem", marginRight: "0.5rem" }}>
+            <input
+              type="checkbox"
+              checked={hideNoise}
+              onChange={(e) => setHideNoise(e.target.checked)}
+            />
+            Nascondi noise
+          </label>
           <button type="button" className="ghost" onClick={() => setHelpOpen((v) => !v)}>
             ?
           </button>
         </div>
         <p className="muted" style={{ fontSize: "0.8rem", marginTop: 0 }}>
-          Priorità: SLA → signal → severity. Hotkeys j/k a i c /
+          Priorità: SLA → signal → cluster → severity. Hotkeys j/k a i c /
         </p>
         {error && <p className="error">{error}</p>}
         <ul className="workbench-list">
-          {queue.map((a) => (
-            <li key={a.id}>
-              <button
-                type="button"
-                className={`workbench-item${a.id === selectedId ? " active" : ""}`}
-                onClick={() => setSelectedId(a.id)}
-              >
-                <span className={`badge ${a.severity}`}>{a.severity}</span>
-                {a.noise_hint && (
-                  <span className={`badge noise-${a.noise_hint}`}>
-                    {a.noise_hint.replace("_", " ")}
-                  </span>
+          {campaignGroups.map(([cid, items]) => {
+            const isCampaign = items.length > 1;
+            const collapsed = !!collapsedCampaigns[cid];
+            const visible = !isCampaign || !collapsed ? items : items.slice(0, 1);
+            return (
+              <li key={`camp-${cid}`} style={{ listStyle: "none" }}>
+                {isCampaign && (
+                  <button
+                    type="button"
+                    className="ghost"
+                    style={{ fontSize: "0.75rem", marginBottom: "0.25rem" }}
+                    onClick={() =>
+                      setCollapsedCampaigns((prev) => ({ ...prev, [cid]: !prev[cid] }))
+                    }
+                  >
+                    Campagna #{cid} ({items.length} alert) {collapsed ? "▸" : "▾"}
+                  </button>
                 )}
-                {a.sla_ack_status === "breached" || a.sla_close_status === "breached" ? (
-                  <span className="badge sla-breached">SLA</span>
-                ) : null}
-                <strong className="workbench-item-title">{a.title}</strong>
-                <span className="mono muted">#{a.id}</span>
-              </button>
-            </li>
-          ))}
+                <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
+                  {visible.map((a) => (
+                    <li key={a.id}>
+                      <button
+                        type="button"
+                        className={`workbench-item${a.id === selectedId ? " active" : ""}`}
+                        onClick={() => setSelectedId(a.id)}
+                      >
+                        <span className={`badge ${a.severity}`}>{a.severity}</span>
+                        {a.noise_hint && (
+                          <span className={`badge noise-${a.noise_hint}`}>
+                            {a.noise_hint.replace("_", " ")}
+                          </span>
+                        )}
+                        {a.sla_ack_status === "breached" || a.sla_close_status === "breached" ? (
+                          <span className="badge sla-breached">SLA</span>
+                        ) : null}
+                        {(a.cluster_size || 0) >= 3 ? (
+                          <span className="badge" title="Alert collegati nel grafo">
+                            cluster {a.cluster_size}
+                          </span>
+                        ) : null}
+                        <strong className="workbench-item-title">{a.title}</strong>
+                        <span className="mono muted">#{a.id}</span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </li>
+            );
+          })}
           {queue.length === 0 && (
             <li className="muted" style={{ padding: "0.5rem" }}>
               Nessun alert open / in corso
@@ -268,6 +342,16 @@ export default function WorkbenchPanel({ onPivotSearch }: Props) {
                 <button type="button" className="ghost" disabled={busy} onClick={() => void runCopilot()}>
                   Suggerisci chiusura
                 </button>
+                {lastSuggest && (
+                  <>
+                    <button type="button" className="ghost" disabled={busy} onClick={() => void sendFeedback(true)}>
+                      Utile
+                    </button>
+                    <button type="button" className="ghost" disabled={busy} onClick={() => void sendFeedback(false)}>
+                      Non utile
+                    </button>
+                  </>
+                )}
               </div>
               {copilotMsg && <p className="muted" style={{ marginBottom: 0 }}>{copilotMsg}</p>}
 
